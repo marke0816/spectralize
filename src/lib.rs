@@ -20,6 +20,15 @@ impl Matrix {
         }
     }
 
+    /// Create a rows x cols identity matrix
+    pub fn identity(rows: usize, cols: usize) -> Self {
+        let mut data = vec![0.0; rows * cols];
+
+        (0..rows.min(cols)).for_each(|i| data[i * cols + i] = 1.0);
+
+        Self { rows, cols, data }
+    }
+
     /// Get the number of rows
     pub fn rows(&self) -> usize {
         self.rows

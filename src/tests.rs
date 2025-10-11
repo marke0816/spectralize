@@ -67,3 +67,45 @@ fn test_out_of_bounds_get() {
     let m = Matrix::zero(2, 2);
     m.get(0, 3);
 }
+
+#[test]
+fn test_identity_square() {
+    let m = Matrix::identity(3, 3);
+    let expected = vec![1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0];
+    assert_eq!(m.rows, 3);
+    assert_eq!(m.cols, 3);
+    assert_eq!(m.data, expected);
+}
+
+#[test]
+fn test_identity_rectangular_rows_greater() {
+    let m = Matrix::identity(4, 3);
+    let expected = vec![1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0];
+    assert_eq!(m.rows, 4);
+    assert_eq!(m.cols, 3);
+    assert_eq!(m.data, expected);
+}
+
+#[test]
+fn test_identity_rectangular_cols_greater() {
+    let m = Matrix::identity(3, 5);
+    let expected = vec![
+        1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0,
+    ];
+    assert_eq!(m.rows, 3);
+    assert_eq!(m.cols, 5);
+    assert_eq!(m.data, expected);
+}
+
+#[test]
+fn test_identity_zero_rows_or_cols() {
+    let m = Matrix::identity(0, 3);
+    assert_eq!(m.rows, 0);
+    assert_eq!(m.cols, 3);
+    assert!(m.data.is_empty());
+
+    let m = Matrix::identity(3, 0);
+    assert_eq!(m.rows, 3);
+    assert_eq!(m.cols, 0);
+    assert!(m.data.is_empty());
+}
