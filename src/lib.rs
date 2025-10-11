@@ -29,6 +29,27 @@ impl Matrix {
         Self { rows, cols, data }
     }
 
+    /// Create a permutation matrix from a vector of column indices.
+    /// The `perm` vector should contain integers 1..=cols, one for each row
+    pub fn perm(rows: usize, cols: usize, perm: Vec<usize>) -> Self {
+        assert_eq!(
+            rows,
+            perm.len(),
+            "Length of permutation vector must match rows"
+        );
+        let mut data = vec![0.0; rows * cols];
+
+        for (row, &col_index) in perm.iter().enumerate() {
+            assert!(
+                col_index >= 1 && col_index <= cols,
+                "Column indices must be 1-based and <= cols"
+            );
+            data[row * cols + (col_index - 1)] = 1.0;
+        }
+
+        Self { rows, cols, data }
+    }
+
     /// Get the number of rows
     pub fn rows(&self) -> usize {
         self.rows

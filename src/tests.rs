@@ -109,3 +109,46 @@ fn test_identity_zero_rows_or_cols() {
     assert_eq!(m.cols, 0);
     assert!(m.data.is_empty());
 }
+
+#[test]
+fn test_perm_square() {
+    let m = Matrix::perm(4, 4, vec![2, 4, 3, 1]);
+    let expected = vec![
+        0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 1.0, 0.0, 1.0, 0.0, 0.0, 0.0,
+    ];
+    assert_eq!(m.rows, 4);
+    assert_eq!(m.cols, 4);
+    assert_eq!(m.data, expected);
+}
+
+#[test]
+fn test_perm_rectangular() {
+    let m = Matrix::perm(3, 5, vec![1, 5, 3]);
+    let expected = vec![
+        1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 1.0, 0.0, 0.0,
+    ];
+    assert_eq!(m.rows, 3);
+    assert_eq!(m.cols, 5);
+    assert_eq!(m.data, expected);
+}
+
+#[test]
+#[should_panic(expected = "Length of permutation vector must match rows")]
+fn test_perm_invalid_length() {
+    // perm vector length != rows
+    Matrix::perm(3, 3, vec![1, 2]);
+}
+
+#[test]
+#[should_panic(expected = "Column indices must be 1-based and <= cols")]
+fn test_perm_invalid_index_zero() {
+    // column index 0 is invalid (1-based)
+    Matrix::perm(3, 3, vec![1, 0, 2]);
+}
+
+#[test]
+#[should_panic(expected = "Column indices must be 1-based and <= cols")]
+fn test_perm_invalid_index_out_of_bounds() {
+    // column index greater than cols is invalid
+    Matrix::perm(3, 3, vec![1, 2, 4]);
+}
