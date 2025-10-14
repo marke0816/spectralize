@@ -1,5 +1,9 @@
 use super::*;
 
+fn sample_matrix() -> Matrix {
+    Matrix::new(3, 3, vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0])
+}
+
 #[test]
 fn test_matrix_creation() {
     let m = Matrix::new(2, 3, vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0]);
@@ -151,4 +155,68 @@ fn test_perm_invalid_index_zero() {
 fn test_perm_invalid_index_out_of_bounds() {
     // column index greater than cols is invalid
     Matrix::perm(3, 3, vec![1, 2, 4]);
+}
+
+#[test]
+fn test_get_valid_indices() {
+    let m = sample_matrix();
+    assert_eq!(m.get(0, 0), 1.0);
+    assert_eq!(m.get(1, 2), 6.0);
+    assert_eq!(m.get(2, 1), 8.0);
+}
+
+#[test]
+#[should_panic(expected = "Index out of bounds")]
+fn test_get_out_of_bounds_row() {
+    let m = sample_matrix();
+    let _ = m.get(3, 0);
+}
+
+#[test]
+#[should_panic(expected = "Index out of bounds")]
+fn test_get_out_of_bounds_col() {
+    let m = sample_matrix();
+    let _ = m.get(0, 3);
+}
+
+#[test]
+fn test_set_valid_indices() {
+    let mut m = sample_matrix();
+    m.set(1, 1, 42.0);
+    assert_eq!(m.get(1, 1), 42.0);
+}
+
+#[test]
+#[should_panic(expected = "Index out of bounds")]
+fn test_set_out_of_bounds() {
+    let mut m = sample_matrix();
+    m.set(5, 0, 99.0);
+}
+
+#[test]
+fn test_row_valid() {
+    let m = sample_matrix();
+    let row = m.row(1);
+    assert_eq!(row, &[4.0, 5.0, 6.0]);
+}
+
+#[test]
+#[should_panic(expected = "Row index out of bounds")]
+fn test_row_out_of_bounds() {
+    let m = sample_matrix();
+    let _ = m.row(3);
+}
+
+#[test]
+fn test_col_valid() {
+    let m = sample_matrix();
+    let col = m.col(2);
+    assert_eq!(col, vec![3.0, 6.0, 9.0]);
+}
+
+#[test]
+#[should_panic(expected = "Column index out of bounds")]
+fn test_col_out_of_bounds() {
+    let m = sample_matrix();
+    let _ = m.col(5);
 }

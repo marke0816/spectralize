@@ -75,7 +75,7 @@ impl Matrix {
     /// Iterator over a row
     pub fn row(&self, row: usize) -> &[f64] {
         assert!(row < self.rows, "Row index out of bounds");
-        let start = row & self.cols;
+        let start = row * self.cols;
         &self.data[start..start + self.cols]
     }
 
