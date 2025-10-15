@@ -220,3 +220,81 @@ fn test_col_out_of_bounds() {
     let m = sample_matrix();
     let _ = m.col(5);
 }
+
+#[test]
+fn test_with_cols() {
+    let a = Matrix::new(2, 2, vec![1.0, 2.0, 3.0, 4.0]);
+
+    let b = Matrix::new(2, 2, vec![5.0, 6.0, 7.0, 8.0]);
+
+    let c = a.with_cols(&b);
+
+    assert_eq!(c.rows, 2);
+    assert_eq!(c.cols, 4);
+    assert_eq!(c.data, vec![1.0, 2.0, 5.0, 6.0, 3.0, 4.0, 7.0, 8.0,]);
+}
+
+#[test]
+#[should_panic(expected = "Row counts must match")]
+fn test_with_cols_mismatch() {
+    let a = Matrix::new(2, 2, vec![1.0, 2.0, 3.0, 4.0]);
+    let b = Matrix::new(3, 2, vec![5.0, 6.0, 7.0, 8.0, 9.0, 10.0]);
+    a.with_cols(&b);
+}
+
+#[test]
+fn test_with_rows() {
+    let a = Matrix::new(2, 2, vec![1.0, 2.0, 3.0, 4.0]);
+
+    let b = Matrix::new(2, 2, vec![5.0, 6.0, 7.0, 8.0]);
+
+    let c = a.with_rows(&b);
+
+    assert_eq!(c.rows, 4);
+    assert_eq!(c.cols, 2);
+    assert_eq!(c.data, vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0,]);
+}
+
+#[test]
+#[should_panic(expected = "Column counts must match")]
+fn test_with_rows_mismatch() {
+    let a = Matrix::new(2, 2, vec![1.0, 2.0, 3.0, 4.0]);
+    let b = Matrix::new(2, 3, vec![5.0, 6.0, 7.0, 8.0, 9.0, 10.0]);
+    a.with_rows(&b);
+}
+
+#[test]
+fn test_with_row_vec() {
+    let a = Matrix::new(2, 2, vec![1.0, 2.0, 3.0, 4.0]);
+
+    let c = a.with_row_vec(&[5.0, 6.0]);
+
+    assert_eq!(c.rows, 3);
+    assert_eq!(c.cols, 2);
+    assert_eq!(c.data, vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0,]);
+}
+
+#[test]
+#[should_panic(expected = "Row length must match column count")]
+fn test_with_row_vec_mismatch() {
+    let a = Matrix::new(2, 2, vec![1.0, 2.0, 3.0, 4.0]);
+    a.with_row_vec(&[5.0, 6.0, 7.0]); // wrong length
+}
+
+#[test]
+fn test_with_col_vec() {
+    let a = Matrix::new(2, 2, vec![1.0, 2.0, 3.0, 4.0]);
+
+    let c = a.with_col_vec(&[5.0, 6.0]);
+
+    assert_eq!(c.rows, 2);
+    assert_eq!(c.cols, 3);
+    assert_eq!(c.data, vec![1.0, 2.0, 5.0, 3.0, 4.0, 6.0,]);
+}
+
+#[test]
+#[should_panic(expected = "Column length must match row count")]
+fn test_with_col_vec_mismatch() {
+    let a = Matrix::new(2, 2, vec![1.0, 2.0, 3.0, 4.0]);
+    a.with_col_vec(&[5.0, 6.0, 7.0]); // wrong length
+}
