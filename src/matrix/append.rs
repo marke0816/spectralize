@@ -1,8 +1,8 @@
-use super::Matrix;
+use super::{Matrix, MatrixElement};
 
-impl Matrix {
+impl<T: MatrixElement + std::fmt::Debug> Matrix<T> {
     /// Returns a new matrix formed by concatenating `self` and `other` horizontally.
-    pub fn with_cols(&self, other: &Matrix) -> Self {
+    pub fn with_cols(&self, other: &Matrix<T>) -> Self {
         assert_eq!(self.rows, other.rows, "Row counts must match");
 
         let mut new_data = Vec::with_capacity(self.rows * (self.cols + other.cols));
@@ -23,7 +23,7 @@ impl Matrix {
     }
 
     /// Returns a new matrix formed by concatenating `self` and `other` vertically.
-    pub fn with_rows(&self, other: &Matrix) -> Self {
+    pub fn with_rows(&self, other: &Matrix<T>) -> Self {
         assert_eq!(self.cols, other.cols, "Column counts must match");
 
         let mut new_data = Vec::with_capacity((self.rows + other.rows) * self.cols);
@@ -38,7 +38,7 @@ impl Matrix {
     }
 
     /// Returns a new matrix with a row (given as a slice) appended at the bottom.
-    pub fn with_row_vec(&self, row: &[f64]) -> Self {
+    pub fn with_row_vec(&self, row: &[T]) -> Self {
         assert_eq!(self.cols, row.len(), "Row length must match column count");
 
         let mut new_data = Vec::with_capacity((self.rows + 1) * self.cols);
@@ -53,7 +53,7 @@ impl Matrix {
     }
 
     /// Returns a new matrix with a column (given as a slice) appended to the right.
-    pub fn with_col_vec(&self, col: &[f64]) -> Self {
+    pub fn with_col_vec(&self, col: &[T]) -> Self {
         assert_eq!(self.rows, col.len(), "Column length must match row count");
 
         let mut new_data = Vec::with_capacity(self.rows * (self.cols + 1));
@@ -61,7 +61,7 @@ impl Matrix {
         for r in 0..self.rows {
             let start = r * self.cols;
             new_data.extend_from_slice(&self.data[start..start + self.cols]);
-            new_data.push(col[r]);
+            new_data.push(col[r].clone());
         }
 
         Self {
