@@ -1,4 +1,5 @@
 pub mod append;
+pub mod arithmetic;
 pub mod element;
 
 pub use element::MatrixElement;

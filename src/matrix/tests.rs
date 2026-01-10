@@ -366,3 +366,408 @@ mod complex_tests {
         assert_eq!(c.get(0, 2), Complex::new(5.0, 1.0));
     }
 }
+
+// Tests for arithmetic operations (addition)
+mod addition_tests {
+    use super::*;
+
+    #[test]
+    fn test_add_owned_owned() {
+        let a = Matrix::new(2, 2, vec![1.0, 2.0, 3.0, 4.0]);
+        let b = Matrix::new(2, 2, vec![5.0, 6.0, 7.0, 8.0]);
+        let c = a + b;
+        let expected = Matrix::new(2, 2, vec![6.0, 8.0, 10.0, 12.0]);
+        assert_eq!(c, expected);
+    }
+
+    #[test]
+    fn test_add_owned_ref() {
+        let a = Matrix::new(2, 2, vec![1.0, 2.0, 3.0, 4.0]);
+        let b = Matrix::new(2, 2, vec![5.0, 6.0, 7.0, 8.0]);
+        let c = a + &b;
+        let expected = Matrix::new(2, 2, vec![6.0, 8.0, 10.0, 12.0]);
+        assert_eq!(c, expected);
+    }
+
+    #[test]
+    fn test_add_ref_ref() {
+        let a = Matrix::new(2, 2, vec![1.0, 2.0, 3.0, 4.0]);
+        let b = Matrix::new(2, 2, vec![5.0, 6.0, 7.0, 8.0]);
+        let c = &a + &b;
+        let expected = Matrix::new(2, 2, vec![6.0, 8.0, 10.0, 12.0]);
+        assert_eq!(c, expected);
+    }
+
+    #[test]
+    fn test_add_different_sizes() {
+        let a = Matrix::new(3, 2, vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0]);
+        let b = Matrix::new(3, 2, vec![10.0, 20.0, 30.0, 40.0, 50.0, 60.0]);
+        let c = a + b;
+        let expected = Matrix::new(3, 2, vec![11.0, 22.0, 33.0, 44.0, 55.0, 66.0]);
+        assert_eq!(c, expected);
+    }
+
+    #[test]
+    #[should_panic(expected = "Row dimensions must match")]
+    fn test_add_row_mismatch() {
+        let a = Matrix::new(2, 2, vec![1.0, 2.0, 3.0, 4.0]);
+        let b = Matrix::new(3, 2, vec![5.0, 6.0, 7.0, 8.0, 9.0, 10.0]);
+        let _ = a + b;
+    }
+
+    #[test]
+    #[should_panic(expected = "Column dimensions must match")]
+    fn test_add_col_mismatch() {
+        let a = Matrix::new(2, 2, vec![1.0, 2.0, 3.0, 4.0]);
+        let b = Matrix::new(2, 3, vec![5.0, 6.0, 7.0, 8.0, 9.0, 10.0]);
+        let _ = a + b;
+    }
+
+    #[test]
+    fn test_add_i32() {
+        let a = Matrix::new(2, 2, vec![1i32, 2, 3, 4]);
+        let b = Matrix::new(2, 2, vec![5i32, 6, 7, 8]);
+        let c = a + b;
+        let expected = Matrix::new(2, 2, vec![6i32, 8, 10, 12]);
+        assert_eq!(c, expected);
+    }
+
+    #[test]
+    fn test_add_f32() {
+        let a = Matrix::new(2, 2, vec![1.0f32, 2.0, 3.0, 4.0]);
+        let b = Matrix::new(2, 2, vec![5.0f32, 6.0, 7.0, 8.0]);
+        let c = a + b;
+        let expected = Matrix::new(2, 2, vec![6.0f32, 8.0, 10.0, 12.0]);
+        assert_eq!(c, expected);
+    }
+
+    #[test]
+    fn test_add_complex() {
+        use num_complex::Complex;
+        let a = Matrix::new(
+            2,
+            2,
+            vec![
+                Complex::new(1.0, 2.0),
+                Complex::new(3.0, 4.0),
+                Complex::new(5.0, 6.0),
+                Complex::new(7.0, 8.0),
+            ],
+        );
+        let b = Matrix::new(
+            2,
+            2,
+            vec![
+                Complex::new(10.0, 1.0),
+                Complex::new(20.0, 2.0),
+                Complex::new(30.0, 3.0),
+                Complex::new(40.0, 4.0),
+            ],
+        );
+        let c = a + b;
+        let expected = Matrix::new(
+            2,
+            2,
+            vec![
+                Complex::new(11.0, 3.0),
+                Complex::new(23.0, 6.0),
+                Complex::new(35.0, 9.0),
+                Complex::new(47.0, 12.0),
+            ],
+        );
+        assert_eq!(c, expected);
+    }
+}
+
+// Tests for arithmetic operations (subtraction)
+mod subtraction_tests {
+    use super::*;
+
+    #[test]
+    fn test_sub_owned_owned() {
+        let a = Matrix::new(2, 2, vec![5.0, 6.0, 7.0, 8.0]);
+        let b = Matrix::new(2, 2, vec![1.0, 2.0, 3.0, 4.0]);
+        let c = a - b;
+        let expected = Matrix::new(2, 2, vec![4.0, 4.0, 4.0, 4.0]);
+        assert_eq!(c, expected);
+    }
+
+    #[test]
+    fn test_sub_owned_ref() {
+        let a = Matrix::new(2, 2, vec![5.0, 6.0, 7.0, 8.0]);
+        let b = Matrix::new(2, 2, vec![1.0, 2.0, 3.0, 4.0]);
+        let c = a - &b;
+        let expected = Matrix::new(2, 2, vec![4.0, 4.0, 4.0, 4.0]);
+        assert_eq!(c, expected);
+    }
+
+    #[test]
+    fn test_sub_ref_ref() {
+        let a = Matrix::new(2, 2, vec![5.0, 6.0, 7.0, 8.0]);
+        let b = Matrix::new(2, 2, vec![1.0, 2.0, 3.0, 4.0]);
+        let c = &a - &b;
+        let expected = Matrix::new(2, 2, vec![4.0, 4.0, 4.0, 4.0]);
+        assert_eq!(c, expected);
+    }
+
+    #[test]
+    fn test_sub_different_sizes() {
+        let a = Matrix::new(3, 2, vec![10.0, 20.0, 30.0, 40.0, 50.0, 60.0]);
+        let b = Matrix::new(3, 2, vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0]);
+        let c = a - b;
+        let expected = Matrix::new(3, 2, vec![9.0, 18.0, 27.0, 36.0, 45.0, 54.0]);
+        assert_eq!(c, expected);
+    }
+
+    #[test]
+    fn test_sub_negative_result() {
+        let a = Matrix::new(2, 2, vec![1.0, 2.0, 3.0, 4.0]);
+        let b = Matrix::new(2, 2, vec![5.0, 6.0, 7.0, 8.0]);
+        let c = a - b;
+        let expected = Matrix::new(2, 2, vec![-4.0, -4.0, -4.0, -4.0]);
+        assert_eq!(c, expected);
+    }
+
+    #[test]
+    #[should_panic(expected = "Row dimensions must match")]
+    fn test_sub_row_mismatch() {
+        let a = Matrix::new(2, 2, vec![1.0, 2.0, 3.0, 4.0]);
+        let b = Matrix::new(3, 2, vec![5.0, 6.0, 7.0, 8.0, 9.0, 10.0]);
+        let _ = a - b;
+    }
+
+    #[test]
+    #[should_panic(expected = "Column dimensions must match")]
+    fn test_sub_col_mismatch() {
+        let a = Matrix::new(2, 2, vec![1.0, 2.0, 3.0, 4.0]);
+        let b = Matrix::new(2, 3, vec![5.0, 6.0, 7.0, 8.0, 9.0, 10.0]);
+        let _ = a - b;
+    }
+
+    #[test]
+    fn test_sub_i32() {
+        let a = Matrix::new(2, 2, vec![5i32, 6, 7, 8]);
+        let b = Matrix::new(2, 2, vec![1i32, 2, 3, 4]);
+        let c = a - b;
+        let expected = Matrix::new(2, 2, vec![4i32, 4, 4, 4]);
+        assert_eq!(c, expected);
+    }
+
+    #[test]
+    fn test_sub_f32() {
+        let a = Matrix::new(2, 2, vec![5.0f32, 6.0, 7.0, 8.0]);
+        let b = Matrix::new(2, 2, vec![1.0f32, 2.0, 3.0, 4.0]);
+        let c = a - b;
+        let expected = Matrix::new(2, 2, vec![4.0f32, 4.0, 4.0, 4.0]);
+        assert_eq!(c, expected);
+    }
+
+    #[test]
+    fn test_sub_complex() {
+        use num_complex::Complex;
+        let a = Matrix::new(
+            2,
+            2,
+            vec![
+                Complex::new(10.0, 5.0),
+                Complex::new(20.0, 6.0),
+                Complex::new(30.0, 7.0),
+                Complex::new(40.0, 8.0),
+            ],
+        );
+        let b = Matrix::new(
+            2,
+            2,
+            vec![
+                Complex::new(1.0, 2.0),
+                Complex::new(3.0, 4.0),
+                Complex::new(5.0, 6.0),
+                Complex::new(7.0, 8.0),
+            ],
+        );
+        let c = a - b;
+        let expected = Matrix::new(
+            2,
+            2,
+            vec![
+                Complex::new(9.0, 3.0),
+                Complex::new(17.0, 2.0),
+                Complex::new(25.0, 1.0),
+                Complex::new(33.0, 0.0),
+            ],
+        );
+        assert_eq!(c, expected);
+    }
+}
+
+// Tests for arithmetic operations (multiplication)
+mod multiplication_tests {
+    use super::*;
+
+    #[test]
+    fn test_mul_owned_owned() {
+        let a = Matrix::new(2, 3, vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0]);
+        let b = Matrix::new(3, 2, vec![7.0, 8.0, 9.0, 10.0, 11.0, 12.0]);
+        let c = a * b;
+        // Result should be 2x2
+        // [1 2 3]   [7  8 ]   [58  64]
+        // [4 5 6] * [9  10] = [139 154]
+        //           [11 12]
+        let expected = Matrix::new(2, 2, vec![58.0, 64.0, 139.0, 154.0]);
+        assert_eq!(c, expected);
+    }
+
+    #[test]
+    fn test_mul_owned_ref() {
+        let a = Matrix::new(2, 3, vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0]);
+        let b = Matrix::new(3, 2, vec![7.0, 8.0, 9.0, 10.0, 11.0, 12.0]);
+        let c = a * &b;
+        let expected = Matrix::new(2, 2, vec![58.0, 64.0, 139.0, 154.0]);
+        assert_eq!(c, expected);
+    }
+
+    #[test]
+    fn test_mul_ref_ref() {
+        let a = Matrix::new(2, 3, vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0]);
+        let b = Matrix::new(3, 2, vec![7.0, 8.0, 9.0, 10.0, 11.0, 12.0]);
+        let c = &a * &b;
+        let expected = Matrix::new(2, 2, vec![58.0, 64.0, 139.0, 154.0]);
+        assert_eq!(c, expected);
+    }
+
+    #[test]
+    fn test_mul_square_matrices() {
+        let a = Matrix::new(2, 2, vec![1.0, 2.0, 3.0, 4.0]);
+        let b = Matrix::new(2, 2, vec![5.0, 6.0, 7.0, 8.0]);
+        let c = a * b;
+        // [1 2] * [5 6] = [19 22]
+        // [3 4]   [7 8]   [43 50]
+        let expected = Matrix::new(2, 2, vec![19.0, 22.0, 43.0, 50.0]);
+        assert_eq!(c, expected);
+    }
+
+    #[test]
+    fn test_mul_identity() {
+        let a = Matrix::new(2, 2, vec![1.0, 2.0, 3.0, 4.0]);
+        let identity = Matrix::identity(2, 2);
+        let c = &a * &identity;
+        assert_eq!(c, a);
+    }
+
+    #[test]
+    fn test_mul_identity_left() {
+        let a = Matrix::new(2, 2, vec![1.0, 2.0, 3.0, 4.0]);
+        let identity = Matrix::identity(2, 2);
+        let c = &identity * &a;
+        assert_eq!(c, a);
+    }
+
+    #[test]
+    fn test_mul_different_dimensions() {
+        // 1x3 * 3x4 = 1x4
+        let a = Matrix::new(1, 3, vec![1.0, 2.0, 3.0]);
+        let b = Matrix::new(3, 4, vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0, 11.0, 12.0]);
+        let c = a * b;
+        // [1 2 3] * [1 2 3 4  ] = [38 44 50 56]
+        //           [5 6 7 8  ]
+        //           [9 10 11 12]
+        let expected = Matrix::new(1, 4, vec![38.0, 44.0, 50.0, 56.0]);
+        assert_eq!(c, expected);
+    }
+
+    #[test]
+    fn test_mul_tall_matrices() {
+        // 3x2 * 2x1 = 3x1
+        let a = Matrix::new(3, 2, vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0]);
+        let b = Matrix::new(2, 1, vec![7.0, 8.0]);
+        let c = a * b;
+        // [1 2]   [7]   [23]
+        // [3 4] * [8] = [53]
+        // [5 6]         [83]
+        let expected = Matrix::new(3, 1, vec![23.0, 53.0, 83.0]);
+        assert_eq!(c, expected);
+    }
+
+    #[test]
+    #[should_panic(expected = "Matrix dimensions incompatible for multiplication")]
+    fn test_mul_incompatible_dimensions() {
+        let a = Matrix::new(2, 3, vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0]);
+        let b = Matrix::new(2, 2, vec![7.0, 8.0, 9.0, 10.0]);
+        let _ = a * b;
+    }
+
+    #[test]
+    fn test_mul_i32() {
+        let a = Matrix::new(2, 2, vec![1i32, 2, 3, 4]);
+        let b = Matrix::new(2, 2, vec![5i32, 6, 7, 8]);
+        let c = a * b;
+        let expected = Matrix::new(2, 2, vec![19i32, 22, 43, 50]);
+        assert_eq!(c, expected);
+    }
+
+    #[test]
+    fn test_mul_f32() {
+        let a = Matrix::new(2, 2, vec![1.0f32, 2.0, 3.0, 4.0]);
+        let b = Matrix::new(2, 2, vec![5.0f32, 6.0, 7.0, 8.0]);
+        let c = a * b;
+        let expected = Matrix::new(2, 2, vec![19.0f32, 22.0, 43.0, 50.0]);
+        assert_eq!(c, expected);
+    }
+
+    #[test]
+    fn test_mul_complex() {
+        use num_complex::Complex;
+        let a = Matrix::new(
+            2,
+            2,
+            vec![
+                Complex::new(1.0, 0.0),
+                Complex::new(2.0, 0.0),
+                Complex::new(3.0, 0.0),
+                Complex::new(4.0, 0.0),
+            ],
+        );
+        let b = Matrix::new(
+            2,
+            2,
+            vec![
+                Complex::new(5.0, 0.0),
+                Complex::new(6.0, 0.0),
+                Complex::new(7.0, 0.0),
+                Complex::new(8.0, 0.0),
+            ],
+        );
+        let c = a * b;
+        let expected = Matrix::new(
+            2,
+            2,
+            vec![
+                Complex::new(19.0, 0.0),
+                Complex::new(22.0, 0.0),
+                Complex::new(43.0, 0.0),
+                Complex::new(50.0, 0.0),
+            ],
+        );
+        assert_eq!(c, expected);
+    }
+
+    #[test]
+    fn test_mul_complex_with_imaginary() {
+        use num_complex::Complex;
+        // (1+i) * (1-i) = 1 - i + i - i^2 = 1 + 1 = 2
+        let a = Matrix::new(1, 1, vec![Complex::new(1.0, 1.0)]);
+        let b = Matrix::new(1, 1, vec![Complex::new(1.0, -1.0)]);
+        let c = a * b;
+        let expected = Matrix::new(1, 1, vec![Complex::new(2.0, 0.0)]);
+        assert_eq!(c, expected);
+    }
+
+    #[test]
+    fn test_mul_zero_matrix() {
+        let a = Matrix::new(2, 2, vec![1.0, 2.0, 3.0, 4.0]);
+        let zero = Matrix::zero(2, 2);
+        let c = a * zero;
+        let expected = Matrix::zero(2, 2);
+        assert_eq!(c, expected);
+    }
+}
