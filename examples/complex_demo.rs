@@ -1,5 +1,5 @@
-use decmat::Matrix;
 use num_complex::Complex;
+use spectralize::Matrix;
 
 fn main() {
     // Example 1: Create a complex matrix
