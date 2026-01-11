@@ -244,3 +244,223 @@ where
         }
     }
 }
+
+// Scalar multiplication: Matrix * scalar
+impl<T> Mul<T> for Matrix<T>
+where
+    T: MatrixElement + std::fmt::Debug + Mul<Output = T>,
+{
+    type Output = Matrix<T>;
+
+    fn mul(mut self, scalar: T) -> Matrix<T> {
+        // In-place mutation for maximum efficiency
+        for i in 0..self.data.len() {
+            self.data[i] = self.data[i].clone() * scalar.clone();
+        }
+        self
+    }
+}
+
+// Scalar multiplication: &Matrix * scalar
+impl<T> Mul<T> for &Matrix<T>
+where
+    T: MatrixElement + std::fmt::Debug + Mul<Output = T>,
+{
+    type Output = Matrix<T>;
+
+    fn mul(self, scalar: T) -> Matrix<T> {
+        // Must allocate new vector for reference
+        let mut data = Vec::with_capacity(self.data.len());
+        for i in 0..self.data.len() {
+            data.push(self.data[i].clone() * scalar.clone());
+        }
+        Matrix {
+            rows: self.rows,
+            cols: self.cols,
+            data,
+        }
+    }
+}
+
+// Scalar multiplication: scalar * Matrix (f64)
+impl Mul<Matrix<f64>> for f64 {
+    type Output = Matrix<f64>;
+
+    fn mul(self, mut matrix: Matrix<f64>) -> Matrix<f64> {
+        for i in 0..matrix.data.len() {
+            matrix.data[i] = self * matrix.data[i];
+        }
+        matrix
+    }
+}
+
+// Scalar multiplication: scalar * &Matrix (f64)
+impl Mul<&Matrix<f64>> for f64 {
+    type Output = Matrix<f64>;
+
+    fn mul(self, matrix: &Matrix<f64>) -> Matrix<f64> {
+        let mut data = Vec::with_capacity(matrix.data.len());
+        for i in 0..matrix.data.len() {
+            data.push(self * matrix.data[i]);
+        }
+        Matrix {
+            rows: matrix.rows,
+            cols: matrix.cols,
+            data,
+        }
+    }
+}
+
+// Scalar multiplication: scalar * Matrix (f32)
+impl Mul<Matrix<f32>> for f32 {
+    type Output = Matrix<f32>;
+
+    fn mul(self, mut matrix: Matrix<f32>) -> Matrix<f32> {
+        for i in 0..matrix.data.len() {
+            matrix.data[i] = self * matrix.data[i];
+        }
+        matrix
+    }
+}
+
+// Scalar multiplication: scalar * &Matrix (f32)
+impl Mul<&Matrix<f32>> for f32 {
+    type Output = Matrix<f32>;
+
+    fn mul(self, matrix: &Matrix<f32>) -> Matrix<f32> {
+        let mut data = Vec::with_capacity(matrix.data.len());
+        for i in 0..matrix.data.len() {
+            data.push(self * matrix.data[i]);
+        }
+        Matrix {
+            rows: matrix.rows,
+            cols: matrix.cols,
+            data,
+        }
+    }
+}
+
+// Scalar multiplication: scalar * Matrix (i32)
+impl Mul<Matrix<i32>> for i32 {
+    type Output = Matrix<i32>;
+
+    fn mul(self, mut matrix: Matrix<i32>) -> Matrix<i32> {
+        for i in 0..matrix.data.len() {
+            matrix.data[i] = self * matrix.data[i];
+        }
+        matrix
+    }
+}
+
+// Scalar multiplication: scalar * &Matrix (i32)
+impl Mul<&Matrix<i32>> for i32 {
+    type Output = Matrix<i32>;
+
+    fn mul(self, matrix: &Matrix<i32>) -> Matrix<i32> {
+        let mut data = Vec::with_capacity(matrix.data.len());
+        for i in 0..matrix.data.len() {
+            data.push(self * matrix.data[i]);
+        }
+        Matrix {
+            rows: matrix.rows,
+            cols: matrix.cols,
+            data,
+        }
+    }
+}
+
+// Additional matrix operations
+impl<T> Matrix<T>
+where
+    T: MatrixElement + std::fmt::Debug,
+{
+    /// Matrix exponentiation: raises a square matrix to a non-negative integer power
+    /// A^n = A * A * ... * A (n times)
+    /// A^0 = I (identity matrix)
+    /// A^1 = A
+    pub fn pow(&self, n: u32) -> Matrix<T>
+    where
+        T: Mul<Output = T> + Add<Output = T>,
+    {
+        assert_eq!(
+            self.rows, self.cols,
+            "Matrix must be square for exponentiation"
+        );
+
+        // TODO: Add support for negative exponents when matrix inversion is implemented
+        // For A^(-n), we would need to compute (A^(-1))^n
+
+        match n {
+            0 => {
+                // A^0 = Identity matrix
+                let mut data = vec![T::zero(); self.rows * self.rows];
+                for i in 0..self.rows {
+                    data[i * self.rows + i] = T::one();
+                }
+                Matrix {
+                    rows: self.rows,
+                    cols: self.cols,
+                    data,
+                }
+            }
+            1 => {
+                // A^1 = A
+                self.clone()
+            }
+            _ => {
+                // A^n for n > 1: repeated multiplication
+                let mut result = self.clone();
+                for _ in 1..n {
+                    result = &result * self;
+                }
+                result
+            }
+        }
+    }
+
+    /// Dot product (inner product) of two matrices treated as vectors
+    /// Computes the sum of element-wise products: sum(a[i] * b[i])
+    /// Both matrices must have the same total number of elements
+    /// Returns a scalar value
+    pub fn dot(&self, other: &Matrix<T>) -> T
+    where
+        T: Mul<Output = T> + Add<Output = T>,
+    {
+        assert_eq!(
+            self.data.len(),
+            other.data.len(),
+            "Matrices must have the same total number of elements for dot product"
+        );
+
+        let mut result = T::zero();
+        for i in 0..self.data.len() {
+            result = result + (self.data[i].clone() * other.data[i].clone());
+        }
+        result
+    }
+
+    /// Outer product of two matrices treated as vectors
+    /// For vector u (length m) and vector v (length n), produces an m×n matrix
+    /// where result[i,j] = u[i] * v[j]
+    pub fn outer(&self, other: &Matrix<T>) -> Matrix<T>
+    where
+        T: Mul<Output = T>,
+    {
+        let m = self.data.len();
+        let n = other.data.len();
+
+        let mut data = Vec::with_capacity(m * n);
+
+        for i in 0..m {
+            for j in 0..n {
+                data.push(self.data[i].clone() * other.data[j].clone());
+            }
+        }
+
+        Matrix {
+            rows: m,
+            cols: n,
+            data,
+        }
+    }
+}

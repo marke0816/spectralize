@@ -771,3 +771,499 @@ mod multiplication_tests {
         assert_eq!(c, expected);
     }
 }
+
+// Tests for matrix exponentiation
+mod exponentiation_tests {
+    use super::*;
+
+    #[test]
+    fn test_pow_zero() {
+        // A^0 = I (identity matrix)
+        let a = Matrix::new(3, 3, vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0]);
+        let result = a.pow(0);
+        let expected = Matrix::identity(3, 3);
+        assert_eq!(result, expected);
+    }
+
+    #[test]
+    fn test_pow_one() {
+        // A^1 = A
+        let a = Matrix::new(2, 2, vec![1.0, 2.0, 3.0, 4.0]);
+        let result = a.pow(1);
+        let expected = Matrix::new(2, 2, vec![1.0, 2.0, 3.0, 4.0]);
+        assert_eq!(result, expected);
+    }
+
+    #[test]
+    fn test_pow_two() {
+        // A^2 = A * A
+        let a = Matrix::new(2, 2, vec![1.0, 2.0, 3.0, 4.0]);
+        let result = a.pow(2);
+        // [1 2] * [1 2] = [7  10]
+        // [3 4]   [3 4]   [15 22]
+        let expected = Matrix::new(2, 2, vec![7.0, 10.0, 15.0, 22.0]);
+        assert_eq!(result, expected);
+    }
+
+    #[test]
+    fn test_pow_three() {
+        // A^3 = A * A * A
+        let a = Matrix::new(2, 2, vec![1.0, 2.0, 3.0, 4.0]);
+        let result = a.pow(3);
+        // A^2 = [7 10; 15 22]
+        // A^3 = A^2 * A = [37 54; 81 118]
+        let expected = Matrix::new(2, 2, vec![37.0, 54.0, 81.0, 118.0]);
+        assert_eq!(result, expected);
+    }
+
+    #[test]
+    fn test_pow_identity() {
+        // I^n = I for any n
+        let identity = Matrix::<f64>::identity(3, 3);
+        let result = identity.pow(5);
+        let expected = Matrix::<f64>::identity(3, 3);
+        assert_eq!(result, expected);
+    }
+
+    #[test]
+    fn test_pow_zero_matrix() {
+        // 0^n = 0 for n > 0
+        let zero = Matrix::<f64>::zero(2, 2);
+        let result = zero.pow(3);
+        let expected = Matrix::<f64>::zero(2, 2);
+        assert_eq!(result, expected);
+    }
+
+    #[test]
+    #[should_panic(expected = "Matrix must be square for exponentiation")]
+    fn test_pow_non_square_matrix() {
+        let a = Matrix::new(2, 3, vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0]);
+        let _ = a.pow(2);
+    }
+
+    #[test]
+    fn test_pow_i32() {
+        let a = Matrix::new(2, 2, vec![1i32, 2, 3, 4]);
+        let result = a.pow(2);
+        let expected = Matrix::new(2, 2, vec![7i32, 10, 15, 22]);
+        assert_eq!(result, expected);
+    }
+
+    #[test]
+    fn test_pow_complex() {
+        use num_complex::Complex;
+        let a = Matrix::new(
+            2,
+            2,
+            vec![
+                Complex::new(1.0, 0.0),
+                Complex::new(0.0, 1.0),
+                Complex::new(0.0, 1.0),
+                Complex::new(1.0, 0.0),
+            ],
+        );
+        let result = a.pow(2);
+        // [1 i] * [1 i] = [1+i^2  i+i ] = [0   2i]
+        // [i 1]   [i 1]   [i+i    i^2+1]  [2i  0 ]
+        let expected = Matrix::new(
+            2,
+            2,
+            vec![
+                Complex::new(0.0, 0.0),
+                Complex::new(0.0, 2.0),
+                Complex::new(0.0, 2.0),
+                Complex::new(0.0, 0.0),
+            ],
+        );
+        assert_eq!(result, expected);
+    }
+}
+
+// Tests for dot product
+mod dot_product_tests {
+    use super::*;
+
+    #[test]
+    fn test_dot_vectors_row() {
+        // Dot product of two row vectors
+        let a = Matrix::new(1, 3, vec![1.0, 2.0, 3.0]);
+        let b = Matrix::new(1, 3, vec![4.0, 5.0, 6.0]);
+        let result = a.dot(&b);
+        // 1*4 + 2*5 + 3*6 = 4 + 10 + 18 = 32
+        assert_eq!(result, 32.0);
+    }
+
+    #[test]
+    fn test_dot_vectors_column() {
+        // Dot product of two column vectors
+        let a = Matrix::new(3, 1, vec![1.0, 2.0, 3.0]);
+        let b = Matrix::new(3, 1, vec![4.0, 5.0, 6.0]);
+        let result = a.dot(&b);
+        assert_eq!(result, 32.0);
+    }
+
+    #[test]
+    fn test_dot_matrices() {
+        // Dot product of two matrices (treated as flattened vectors)
+        let a = Matrix::new(2, 2, vec![1.0, 2.0, 3.0, 4.0]);
+        let b = Matrix::new(2, 2, vec![5.0, 6.0, 7.0, 8.0]);
+        let result = a.dot(&b);
+        // 1*5 + 2*6 + 3*7 + 4*8 = 5 + 12 + 21 + 32 = 70
+        assert_eq!(result, 70.0);
+    }
+
+    #[test]
+    fn test_dot_zero_vectors() {
+        let a = Matrix::new(1, 3, vec![1.0, 2.0, 3.0]);
+        let b = Matrix::new(1, 3, vec![0.0, 0.0, 0.0]);
+        let result = a.dot(&b);
+        assert_eq!(result, 0.0);
+    }
+
+    #[test]
+    fn test_dot_same_vector() {
+        // Dot product of a vector with itself gives squared magnitude
+        let a = Matrix::new(1, 3, vec![2.0, 3.0, 4.0]);
+        let result = a.dot(&a);
+        // 2^2 + 3^2 + 4^2 = 4 + 9 + 16 = 29
+        assert_eq!(result, 29.0);
+    }
+
+    #[test]
+    #[should_panic(expected = "Matrices must have the same total number of elements for dot product")]
+    fn test_dot_different_sizes() {
+        let a = Matrix::new(1, 3, vec![1.0, 2.0, 3.0]);
+        let b = Matrix::new(1, 4, vec![4.0, 5.0, 6.0, 7.0]);
+        let _ = a.dot(&b);
+    }
+
+    #[test]
+    fn test_dot_i32() {
+        let a = Matrix::new(1, 3, vec![1i32, 2, 3]);
+        let b = Matrix::new(1, 3, vec![4i32, 5, 6]);
+        let result = a.dot(&b);
+        assert_eq!(result, 32i32);
+    }
+
+    #[test]
+    fn test_dot_f32() {
+        let a = Matrix::new(1, 3, vec![1.0f32, 2.0, 3.0]);
+        let b = Matrix::new(1, 3, vec![4.0f32, 5.0, 6.0]);
+        let result = a.dot(&b);
+        assert_eq!(result, 32.0f32);
+    }
+
+    #[test]
+    fn test_dot_complex() {
+        use num_complex::Complex;
+        let a = Matrix::new(
+            1,
+            2,
+            vec![Complex::new(1.0, 1.0), Complex::new(2.0, 0.0)],
+        );
+        let b = Matrix::new(
+            1,
+            2,
+            vec![Complex::new(1.0, -1.0), Complex::new(3.0, 0.0)],
+        );
+        let result = a.dot(&b);
+        // (1+i)*(1-i) + 2*3 = 2 + 6 = 8
+        assert_eq!(result, Complex::new(8.0, 0.0));
+    }
+}
+
+// Tests for scalar multiplication
+mod scalar_multiplication_tests {
+    use super::*;
+
+    #[test]
+    fn test_scalar_mul_matrix_owned() {
+        let a = Matrix::new(2, 2, vec![1.0, 2.0, 3.0, 4.0]);
+        let c = a * 2.0;
+        let expected = Matrix::new(2, 2, vec![2.0, 4.0, 6.0, 8.0]);
+        assert_eq!(c, expected);
+    }
+
+    #[test]
+    fn test_scalar_mul_matrix_ref() {
+        let a = Matrix::new(2, 2, vec![1.0, 2.0, 3.0, 4.0]);
+        let c = &a * 2.0;
+        let expected = Matrix::new(2, 2, vec![2.0, 4.0, 6.0, 8.0]);
+        assert_eq!(c, expected);
+    }
+
+    #[test]
+    fn test_scalar_mul_left_owned() {
+        let a = Matrix::new(2, 2, vec![1.0, 2.0, 3.0, 4.0]);
+        let c = 2.0 * a;
+        let expected = Matrix::new(2, 2, vec![2.0, 4.0, 6.0, 8.0]);
+        assert_eq!(c, expected);
+    }
+
+    #[test]
+    fn test_scalar_mul_left_ref() {
+        let a = Matrix::new(2, 2, vec![1.0, 2.0, 3.0, 4.0]);
+        let c = 2.0 * &a;
+        let expected = Matrix::new(2, 2, vec![2.0, 4.0, 6.0, 8.0]);
+        assert_eq!(c, expected);
+    }
+
+    #[test]
+    fn test_scalar_mul_commutative() {
+        let a = Matrix::new(2, 3, vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0]);
+        let c1 = &a * 3.0;
+        let c2 = 3.0 * &a;
+        assert_eq!(c1, c2);
+    }
+
+    #[test]
+    fn test_scalar_mul_zero() {
+        let a = Matrix::new(2, 2, vec![1.0, 2.0, 3.0, 4.0]);
+        let c = a * 0.0;
+        let expected = Matrix::zero(2, 2);
+        assert_eq!(c, expected);
+    }
+
+    #[test]
+    fn test_scalar_mul_one() {
+        let a = Matrix::new(2, 2, vec![1.0, 2.0, 3.0, 4.0]);
+        let c = &a * 1.0;
+        assert_eq!(c, a);
+    }
+
+    #[test]
+    fn test_scalar_mul_negative() {
+        let a = Matrix::new(2, 2, vec![1.0, 2.0, 3.0, 4.0]);
+        let c = a * -1.0;
+        let expected = Matrix::new(2, 2, vec![-1.0, -2.0, -3.0, -4.0]);
+        assert_eq!(c, expected);
+    }
+
+    #[test]
+    fn test_scalar_mul_fractional() {
+        let a = Matrix::new(2, 2, vec![2.0, 4.0, 6.0, 8.0]);
+        let c = a * 0.5;
+        let expected = Matrix::new(2, 2, vec![1.0, 2.0, 3.0, 4.0]);
+        assert_eq!(c, expected);
+    }
+
+    #[test]
+    fn test_scalar_mul_i32() {
+        let a = Matrix::new(2, 2, vec![1i32, 2, 3, 4]);
+        let c = a * 3i32;
+        let expected = Matrix::new(2, 2, vec![3i32, 6, 9, 12]);
+        assert_eq!(c, expected);
+    }
+
+    #[test]
+    fn test_scalar_mul_i32_left() {
+        let a = Matrix::new(2, 2, vec![1i32, 2, 3, 4]);
+        let c = 3i32 * a;
+        let expected = Matrix::new(2, 2, vec![3i32, 6, 9, 12]);
+        assert_eq!(c, expected);
+    }
+
+    #[test]
+    fn test_scalar_mul_f32() {
+        let a = Matrix::new(2, 2, vec![1.0f32, 2.0, 3.0, 4.0]);
+        let c = a * 2.5f32;
+        let expected = Matrix::new(2, 2, vec![2.5f32, 5.0, 7.5, 10.0]);
+        assert_eq!(c, expected);
+    }
+
+    #[test]
+    fn test_scalar_mul_f32_left() {
+        let a = Matrix::new(2, 2, vec![1.0f32, 2.0, 3.0, 4.0]);
+        let c = 2.5f32 * a;
+        let expected = Matrix::new(2, 2, vec![2.5f32, 5.0, 7.5, 10.0]);
+        assert_eq!(c, expected);
+    }
+
+    #[test]
+    fn test_scalar_mul_different_sizes() {
+        let a = Matrix::new(3, 4, vec![
+            1.0, 2.0, 3.0, 4.0,
+            5.0, 6.0, 7.0, 8.0,
+            9.0, 10.0, 11.0, 12.0
+        ]);
+        let c = &a * 2.0;
+        let expected = Matrix::new(3, 4, vec![
+            2.0, 4.0, 6.0, 8.0,
+            10.0, 12.0, 14.0, 16.0,
+            18.0, 20.0, 22.0, 24.0
+        ]);
+        assert_eq!(c, expected);
+    }
+
+    #[test]
+    fn test_scalar_mul_complex() {
+        use num_complex::Complex;
+        let a = Matrix::new(
+            2,
+            2,
+            vec![
+                Complex::new(1.0, 2.0),
+                Complex::new(3.0, 4.0),
+                Complex::new(5.0, 6.0),
+                Complex::new(7.0, 8.0),
+            ],
+        );
+        let c = a * Complex::new(2.0, 0.0);
+        let expected = Matrix::new(
+            2,
+            2,
+            vec![
+                Complex::new(2.0, 4.0),
+                Complex::new(6.0, 8.0),
+                Complex::new(10.0, 12.0),
+                Complex::new(14.0, 16.0),
+            ],
+        );
+        assert_eq!(c, expected);
+    }
+
+    #[test]
+    fn test_scalar_mul_complex_imaginary() {
+        use num_complex::Complex;
+        // Multiply by i: (a+bi) * i = -b + ai
+        let a = Matrix::new(
+            2,
+            2,
+            vec![
+                Complex::new(1.0, 0.0),
+                Complex::new(0.0, 1.0),
+                Complex::new(2.0, 3.0),
+                Complex::new(4.0, -1.0),
+            ],
+        );
+        let c = a * Complex::new(0.0, 1.0);
+        let expected = Matrix::new(
+            2,
+            2,
+            vec![
+                Complex::new(0.0, 1.0),
+                Complex::new(-1.0, 0.0),
+                Complex::new(-3.0, 2.0),
+                Complex::new(1.0, 4.0),
+            ],
+        );
+        assert_eq!(c, expected);
+    }
+}
+
+// Tests for outer product
+mod outer_product_tests {
+    use super::*;
+
+    #[test]
+    fn test_outer_basic() {
+        // Outer product of two vectors
+        let a = Matrix::new(3, 1, vec![1.0, 2.0, 3.0]);
+        let b = Matrix::new(2, 1, vec![4.0, 5.0]);
+        let result = a.outer(&b);
+        // [1]     [4 5]
+        // [2] ⊗ = [8 10]
+        // [3]     [12 15]
+        let expected = Matrix::new(3, 2, vec![4.0, 5.0, 8.0, 10.0, 12.0, 15.0]);
+        assert_eq!(result, expected);
+    }
+
+    #[test]
+    fn test_outer_row_vectors() {
+        let a = Matrix::new(1, 3, vec![1.0, 2.0, 3.0]);
+        let b = Matrix::new(1, 2, vec![4.0, 5.0]);
+        let result = a.outer(&b);
+        let expected = Matrix::new(3, 2, vec![4.0, 5.0, 8.0, 10.0, 12.0, 15.0]);
+        assert_eq!(result, expected);
+    }
+
+    #[test]
+    fn test_outer_different_sizes() {
+        let a = Matrix::new(1, 4, vec![1.0, 2.0, 3.0, 4.0]);
+        let b = Matrix::new(1, 2, vec![5.0, 6.0]);
+        let result = a.outer(&b);
+        // [1 2 3 4] ⊗ [5 6] =
+        // [5  6 ]
+        // [10 12]
+        // [15 18]
+        // [20 24]
+        let expected = Matrix::new(4, 2, vec![5.0, 6.0, 10.0, 12.0, 15.0, 18.0, 20.0, 24.0]);
+        assert_eq!(result, expected);
+    }
+
+    #[test]
+    fn test_outer_with_zero() {
+        let a = Matrix::new(1, 2, vec![1.0, 2.0]);
+        let b = Matrix::new(1, 2, vec![0.0, 0.0]);
+        let result = a.outer(&b);
+        let expected = Matrix::zero(2, 2);
+        assert_eq!(result, expected);
+    }
+
+    #[test]
+    fn test_outer_single_elements() {
+        let a = Matrix::new(1, 1, vec![3.0]);
+        let b = Matrix::new(1, 1, vec![4.0]);
+        let result = a.outer(&b);
+        let expected = Matrix::new(1, 1, vec![12.0]);
+        assert_eq!(result, expected);
+    }
+
+    #[test]
+    fn test_outer_matrices_as_vectors() {
+        // Outer product treating matrices as flattened vectors
+        let a = Matrix::new(2, 2, vec![1.0, 2.0, 3.0, 4.0]);
+        let b = Matrix::new(1, 2, vec![5.0, 6.0]);
+        let result = a.outer(&b);
+        // [1 2 3 4] ⊗ [5 6] produces a 4x2 matrix
+        let expected = Matrix::new(4, 2, vec![5.0, 6.0, 10.0, 12.0, 15.0, 18.0, 20.0, 24.0]);
+        assert_eq!(result, expected);
+    }
+
+    #[test]
+    fn test_outer_i32() {
+        let a = Matrix::new(1, 3, vec![1i32, 2, 3]);
+        let b = Matrix::new(1, 2, vec![4i32, 5]);
+        let result = a.outer(&b);
+        let expected = Matrix::new(3, 2, vec![4i32, 5, 8, 10, 12, 15]);
+        assert_eq!(result, expected);
+    }
+
+    #[test]
+    fn test_outer_f32() {
+        let a = Matrix::new(1, 2, vec![2.0f32, 3.0]);
+        let b = Matrix::new(1, 2, vec![4.0f32, 5.0]);
+        let result = a.outer(&b);
+        let expected = Matrix::new(2, 2, vec![8.0f32, 10.0, 12.0, 15.0]);
+        assert_eq!(result, expected);
+    }
+
+    #[test]
+    fn test_outer_complex() {
+        use num_complex::Complex;
+        let a = Matrix::new(
+            1,
+            2,
+            vec![Complex::new(1.0, 1.0), Complex::new(2.0, 0.0)],
+        );
+        let b = Matrix::new(
+            1,
+            2,
+            vec![Complex::new(1.0, 0.0), Complex::new(0.0, 1.0)],
+        );
+        let result = a.outer(&b);
+        // [1+i  i-1]
+        // [2    2i ]
+        let expected = Matrix::new(
+            2,
+            2,
+            vec![
+                Complex::new(1.0, 1.0),
+                Complex::new(-1.0, 1.0),
+                Complex::new(2.0, 0.0),
+                Complex::new(0.0, 2.0),
+            ],
+        );
+        assert_eq!(result, expected);
+    }
+}
