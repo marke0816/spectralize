@@ -13,6 +13,8 @@ A high-performance, generic matrix library for Rust with support for real, integ
 - **Advanced Operations**:
   - Dot product (inner product)
   - Outer product
+  - Matrix transpose
+  - Trace (sum of diagonal elements)
 - **Matrix Construction**:
   - Zero matrices
   - Identity matrices
@@ -138,6 +140,14 @@ let dot = a.dot(&b);  // 1*4 + 2*5 + 3*6 = 32
 let c = Matrix::new(3, 1, vec![1.0, 2.0, 3.0]);
 let d = Matrix::new(2, 1, vec![4.0, 5.0]);
 let outer = c.outer(&d);  // Produces a 3x2 matrix
+
+// Transpose
+let m = Matrix::new(2, 3, vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0]);
+let m_t = m.transpose();  // Produces a 3x2 matrix
+
+// Trace (sum of diagonal elements)
+let square = Matrix::new(3, 3, vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0]);
+let tr = square.trace();  // 1 + 5 + 9 = 15
 ```
 
 ### Matrix Concatenation
@@ -202,6 +212,8 @@ let perm = Matrix::<f64>::perm(4, 4, vec![2, 4, 3, 1]);
 - `pow(n)` - Matrix exponentiation (A^n)
 - `dot(other)` - Dot product
 - `outer(other)` - Outer product
+- `transpose()` - Matrix transpose
+- `trace()` - Trace (sum of diagonal elements, square matrices only)
 
 #### Concatenation
 - `with_cols(other)` - Horizontal concatenation
@@ -266,15 +278,13 @@ Contributions are welcome! Areas for potential enhancement:
 - Matrix decompositions (LU, QR, SVD, eigenvalue decomposition)
 - Matrix inversion
 - Determinant calculation
-- Additional matrix operations (transpose, trace, etc.)
 - Performance optimizations
 - More examples and documentation
 
 ## Future Plans
 
-- Matrix transposition
 - Matrix inversion (for `A^-n` support in `pow`)
-- Determinant and trace operations
+- Determinant calculation
 - LU, QR, and Cholesky decompositions
 - Eigenvalue and eigenvector computation
 - Sparse matrix support

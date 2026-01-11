@@ -99,6 +99,38 @@ impl<T: MatrixElement + std::fmt::Debug> Matrix<T> {
             .map(|r| self.data[r * self.cols + col].clone())
             .collect()
     }
+
+    /// Compute the transpose of the matrix
+    pub fn transpose(&self) -> Self {
+        // Pre-allocate for performance
+        let mut data = Vec::with_capacity(self.rows * self.cols);
+
+        // Iterate column-major to populate transposed row-major layout
+        for col in 0..self.cols {
+            for row in 0..self.rows {
+                data.push(self.data[row * self.cols + col].clone());
+            }
+        }
+
+        Self {
+            rows: self.cols,
+            cols: self.rows,
+            data,
+        }
+    }
+
+    /// Compute the trace (sum of diagonal elements) of a square matrix
+    pub fn trace(&self) -> T
+    where
+        T: std::ops::Add<Output = T>,
+    {
+        assert_eq!(self.rows, self.cols, "Matrix must be square for trace");
+
+        // Efficiently sum diagonal elements without intermediate allocations
+        (0..self.rows)
+            .map(|i| self.data[i * self.cols + i].clone())
+            .fold(T::zero(), |acc, x| acc + x)
+    }
 }
 
 #[cfg(test)]

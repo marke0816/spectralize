@@ -1151,6 +1151,231 @@ mod scalar_multiplication_tests {
     }
 }
 
+// Tests for transpose
+mod transpose_tests {
+    use super::*;
+
+    #[test]
+    fn test_transpose_square() {
+        let a = Matrix::new(3, 3, vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0]);
+        let a_t = a.transpose();
+        let expected = Matrix::new(3, 3, vec![1.0, 4.0, 7.0, 2.0, 5.0, 8.0, 3.0, 6.0, 9.0]);
+        assert_eq!(a_t, expected);
+    }
+
+    #[test]
+    fn test_transpose_rectangular_tall() {
+        // 3x2 -> 2x3
+        let a = Matrix::new(3, 2, vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0]);
+        let a_t = a.transpose();
+        let expected = Matrix::new(2, 3, vec![1.0, 3.0, 5.0, 2.0, 4.0, 6.0]);
+        assert_eq!(a_t, expected);
+    }
+
+    #[test]
+    fn test_transpose_rectangular_wide() {
+        // 2x3 -> 3x2
+        let a = Matrix::new(2, 3, vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0]);
+        let a_t = a.transpose();
+        let expected = Matrix::new(3, 2, vec![1.0, 4.0, 2.0, 5.0, 3.0, 6.0]);
+        assert_eq!(a_t, expected);
+    }
+
+    #[test]
+    fn test_transpose_twice() {
+        // (A^T)^T = A
+        let a = Matrix::new(2, 3, vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0]);
+        let a_t_t = a.transpose().transpose();
+        assert_eq!(a_t_t, a);
+    }
+
+    #[test]
+    fn test_transpose_identity() {
+        let identity = Matrix::<f64>::identity(3, 3);
+        let identity_t = identity.transpose();
+        assert_eq!(identity_t, identity);
+    }
+
+    #[test]
+    fn test_transpose_row_vector() {
+        // 1x3 -> 3x1
+        let row = Matrix::new(1, 3, vec![1.0, 2.0, 3.0]);
+        let col = row.transpose();
+        let expected = Matrix::new(3, 1, vec![1.0, 2.0, 3.0]);
+        assert_eq!(col, expected);
+    }
+
+    #[test]
+    fn test_transpose_col_vector() {
+        // 3x1 -> 1x3
+        let col = Matrix::new(3, 1, vec![1.0, 2.0, 3.0]);
+        let row = col.transpose();
+        let expected = Matrix::new(1, 3, vec![1.0, 2.0, 3.0]);
+        assert_eq!(row, expected);
+    }
+
+    #[test]
+    fn test_transpose_single_element() {
+        let a = Matrix::new(1, 1, vec![42.0]);
+        let a_t = a.transpose();
+        assert_eq!(a_t, a);
+    }
+
+    #[test]
+    fn test_transpose_i32() {
+        let a = Matrix::new(2, 3, vec![1i32, 2, 3, 4, 5, 6]);
+        let a_t = a.transpose();
+        let expected = Matrix::new(3, 2, vec![1i32, 4, 2, 5, 3, 6]);
+        assert_eq!(a_t, expected);
+    }
+
+    #[test]
+    fn test_transpose_f32() {
+        let a = Matrix::new(2, 2, vec![1.0f32, 2.0, 3.0, 4.0]);
+        let a_t = a.transpose();
+        let expected = Matrix::new(2, 2, vec![1.0f32, 3.0, 2.0, 4.0]);
+        assert_eq!(a_t, expected);
+    }
+
+    #[test]
+    fn test_transpose_complex() {
+        use num_complex::Complex;
+        let a = Matrix::new(
+            2,
+            2,
+            vec![
+                Complex::new(1.0, 2.0),
+                Complex::new(3.0, 4.0),
+                Complex::new(5.0, 6.0),
+                Complex::new(7.0, 8.0),
+            ],
+        );
+        let a_t = a.transpose();
+        let expected = Matrix::new(
+            2,
+            2,
+            vec![
+                Complex::new(1.0, 2.0),
+                Complex::new(5.0, 6.0),
+                Complex::new(3.0, 4.0),
+                Complex::new(7.0, 8.0),
+            ],
+        );
+        assert_eq!(a_t, expected);
+    }
+
+    #[test]
+    fn test_transpose_dimensions() {
+        let a = Matrix::new(4, 5, vec![0.0; 20]);
+        let a_t = a.transpose();
+        assert_eq!(a_t.rows(), 5);
+        assert_eq!(a_t.cols(), 4);
+    }
+}
+
+// Tests for trace
+mod trace_tests {
+    use super::*;
+
+    #[test]
+    fn test_trace_square_3x3() {
+        let a = Matrix::new(3, 3, vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0]);
+        let tr = a.trace();
+        // 1 + 5 + 9 = 15
+        assert_eq!(tr, 15.0);
+    }
+
+    #[test]
+    fn test_trace_square_2x2() {
+        let a = Matrix::new(2, 2, vec![1.0, 2.0, 3.0, 4.0]);
+        let tr = a.trace();
+        // 1 + 4 = 5
+        assert_eq!(tr, 5.0);
+    }
+
+    #[test]
+    fn test_trace_identity() {
+        let identity = Matrix::<f64>::identity(5, 5);
+        let tr = identity.trace();
+        // Sum of 1s along diagonal
+        assert_eq!(tr, 5.0);
+    }
+
+    #[test]
+    fn test_trace_zero_matrix() {
+        let zero = Matrix::<f64>::zero(4, 4);
+        let tr = zero.trace();
+        assert_eq!(tr, 0.0);
+    }
+
+    #[test]
+    fn test_trace_single_element() {
+        let a = Matrix::new(1, 1, vec![42.0]);
+        let tr = a.trace();
+        assert_eq!(tr, 42.0);
+    }
+
+    #[test]
+    fn test_trace_negative_values() {
+        let a = Matrix::new(3, 3, vec![-1.0, 2.0, 3.0, 4.0, -5.0, 6.0, 7.0, 8.0, -9.0]);
+        let tr = a.trace();
+        // -1 + (-5) + (-9) = -15
+        assert_eq!(tr, -15.0);
+    }
+
+    #[test]
+    #[should_panic(expected = "Matrix must be square for trace")]
+    fn test_trace_non_square() {
+        let a = Matrix::new(2, 3, vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0]);
+        let _ = a.trace();
+    }
+
+    #[test]
+    fn test_trace_i32() {
+        let a = Matrix::new(3, 3, vec![1i32, 2, 3, 4, 5, 6, 7, 8, 9]);
+        let tr = a.trace();
+        assert_eq!(tr, 15i32);
+    }
+
+    #[test]
+    fn test_trace_f32() {
+        let a = Matrix::new(2, 2, vec![1.5f32, 2.0, 3.0, 4.5]);
+        let tr = a.trace();
+        assert_eq!(tr, 6.0f32);
+    }
+
+    #[test]
+    fn test_trace_complex() {
+        use num_complex::Complex;
+        let a = Matrix::new(
+            2,
+            2,
+            vec![
+                Complex::new(1.0, 2.0),
+                Complex::new(3.0, 4.0),
+                Complex::new(5.0, 6.0),
+                Complex::new(7.0, 8.0),
+            ],
+        );
+        let tr = a.trace();
+        // (1+2i) + (7+8i) = 8+10i
+        assert_eq!(tr, Complex::new(8.0, 10.0));
+    }
+
+    #[test]
+    fn test_trace_large_matrix() {
+        let size = 100;
+        let mut data = vec![0.0; size * size];
+        // Set diagonal to 1.0
+        for i in 0..size {
+            data[i * size + i] = 1.0;
+        }
+        let a = Matrix::new(size, size, data);
+        let tr = a.trace();
+        assert_eq!(tr, 100.0);
+    }
+}
+
 // Tests for outer product
 mod outer_product_tests {
     use super::*;
