@@ -8,13 +8,13 @@ where
 {
     type Output = Matrix<T>;
 
-    fn add(mut self, other: Matrix<T>) -> Matrix<T> {
+    fn add(mut self, mut other: Matrix<T>) -> Matrix<T> {
         assert_eq!(self.rows, other.rows, "Row dimensions must match");
         assert_eq!(self.cols, other.cols, "Column dimensions must match");
 
-        // In-place mutation for maximum efficiency
+        // In-place mutation for maximum efficiency - move out of both owned matrices
         for i in 0..self.data.len() {
-            self.data[i] = self.data[i].clone() + other.data[i].clone();
+            self.data[i] = std::mem::replace(&mut self.data[i], T::zero()) + std::mem::replace(&mut other.data[i], T::zero());
         }
 
         self
@@ -32,9 +32,9 @@ where
         assert_eq!(self.rows, other.rows, "Row dimensions must match");
         assert_eq!(self.cols, other.cols, "Column dimensions must match");
 
-        // In-place mutation, cloning from reference
+        // In-place mutation - move out of owned self, clone from borrowed other
         for i in 0..self.data.len() {
-            self.data[i] = self.data[i].clone() + other.data[i].clone();
+            self.data[i] = std::mem::replace(&mut self.data[i], T::zero()) + other.data[i].clone();
         }
 
         self
@@ -73,13 +73,13 @@ where
 {
     type Output = Matrix<T>;
 
-    fn sub(mut self, other: Matrix<T>) -> Matrix<T> {
+    fn sub(mut self, mut other: Matrix<T>) -> Matrix<T> {
         assert_eq!(self.rows, other.rows, "Row dimensions must match");
         assert_eq!(self.cols, other.cols, "Column dimensions must match");
 
-        // In-place mutation for maximum efficiency
+        // In-place mutation for maximum efficiency - move out of both owned matrices
         for i in 0..self.data.len() {
-            self.data[i] = self.data[i].clone() - other.data[i].clone();
+            self.data[i] = std::mem::replace(&mut self.data[i], T::zero()) - std::mem::replace(&mut other.data[i], T::zero());
         }
 
         self
@@ -97,9 +97,9 @@ where
         assert_eq!(self.rows, other.rows, "Row dimensions must match");
         assert_eq!(self.cols, other.cols, "Column dimensions must match");
 
-        // In-place mutation, cloning from reference
+        // In-place mutation - move out of owned self, clone from borrowed other
         for i in 0..self.data.len() {
-            self.data[i] = self.data[i].clone() - other.data[i].clone();
+            self.data[i] = std::mem::replace(&mut self.data[i], T::zero()) - other.data[i].clone();
         }
 
         self
@@ -253,9 +253,9 @@ where
     type Output = Matrix<T>;
 
     fn mul(mut self, scalar: T) -> Matrix<T> {
-        // In-place mutation for maximum efficiency
+        // In-place mutation for maximum efficiency - move out of owned matrix
         for i in 0..self.data.len() {
-            self.data[i] = self.data[i].clone() * scalar.clone();
+            self.data[i] = std::mem::replace(&mut self.data[i], T::zero()) * scalar.clone();
         }
         self
     }
@@ -375,6 +375,7 @@ where
     T: MatrixElement + std::fmt::Debug,
 {
     /// Matrix exponentiation: raises a square matrix to a non-negative integer power
+    /// Uses binary exponentiation for O(log n) complexity
     /// A^n = A * A * ... * A (n times)
     /// A^0 = I (identity matrix)
     /// A^1 = A
@@ -408,11 +409,19 @@ where
                 self.clone()
             }
             _ => {
-                // A^n for n > 1: repeated multiplication
-                let mut result = self.clone();
-                for _ in 1..n {
-                    result = &result * self;
+                // Binary exponentiation: O(log n) instead of O(n)
+                let mut result = Matrix::identity(self.rows, self.cols);
+                let mut base = self.clone();
+                let mut exp = n;
+
+                while exp > 0 {
+                    if exp % 2 == 1 {
+                        result = result * &base;
+                    }
+                    base = &base * &base;
+                    exp /= 2;
                 }
+
                 result
             }
         }

@@ -67,7 +67,13 @@ impl<T: MatrixElement + std::fmt::Debug> Matrix<T> {
         self.cols
     }
 
-    /// Safe getter
+    /// Zero-cost reference getter
+    pub fn get_ref(&self, row: usize, col: usize) -> &T {
+        assert!(row < self.rows && col < self.cols, "Index out of bounds");
+        &self.data[row * self.cols + col]
+    }
+
+    /// Safe getter that returns a clone of the element
     pub fn get(&self, row: usize, col: usize) -> T {
         assert!(row < self.rows && col < self.cols, "Index out of bounds");
         self.data[row * self.cols + col].clone()
