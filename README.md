@@ -276,7 +276,7 @@ examples/
 
 - Matrix inversion (for `A^-n` support in `pow`)
 - Determinant calculation
-- LU, QR, and Cholesky decompositions
+- LU, QR, Cholesky, SVD decompositions
 - Eigenvalue and eigenvector computation
 - Purpose-built graphics rendering APIs
 - Sparse matrix support
