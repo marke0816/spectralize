@@ -272,32 +272,11 @@ examples/
 └── complex_demo.rs     # Example using complex numbers
 ```
 
-## Contributing
-
-Contributions are welcome! Areas for potential enhancement:
-- Matrix decompositions (LU, QR, SVD, eigenvalue decomposition)
-- Matrix inversion
-- Determinant calculation
-- Performance optimizations
-- More examples and documentation
-
 ## Future Plans
 
 - Matrix inversion (for `A^-n` support in `pow`)
 - Determinant calculation
 - LU, QR, and Cholesky decompositions
 - Eigenvalue and eigenvector computation
+- Purpose-built graphics rendering APIs
 - Sparse matrix support
-
-## Version History
-
-### 0.1.0
-- Initial release
-- Generic matrix implementation supporting all numeric types
-- Basic arithmetic operations (add, subtract, multiply)
-- Scalar multiplication
-- Matrix exponentiation
-- Dot and outer products
-- Matrix concatenation
-- Identity, zero, and permutation matrices
-- Complex number support via `num-complex`
