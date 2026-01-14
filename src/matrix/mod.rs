@@ -2,6 +2,7 @@ pub mod append;
 pub mod arithmetic;
 pub mod decomposition;
 pub mod element;
+pub mod norm;
 
 pub use element::MatrixElement;
 

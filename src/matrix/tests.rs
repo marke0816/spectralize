@@ -1699,3 +1699,347 @@ mod decomposition_tests {
         assert_eq!(m.determinant(), 0.0);
     }
 }
+
+// Tests for matrix norms
+mod norm_tests {
+    use super::*;
+
+    #[test]
+    fn test_frobenius_norm_2x2() {
+        // [[1, 2], [3, 4]]
+        // ||A||_F = sqrt(1^2 + 2^2 + 3^2 + 4^2) = sqrt(30) ≈ 5.477
+        let m = Matrix::new(2, 2, vec![1.0f64, 2.0, 3.0, 4.0]);
+        let norm: f64 = m.norm_fro();
+        let expected = (30.0f64).sqrt();
+        assert!((norm - expected).abs() < 1e-10f64);
+    }
+
+    #[test]
+    fn test_frobenius_norm_3x3() {
+        // [[1, 2, 3], [4, 5, 6], [7, 8, 9]]
+        // ||A||_F = sqrt(1 + 4 + 9 + 16 + 25 + 36 + 49 + 64 + 81) = sqrt(285) ≈ 16.882
+        let m = Matrix::new(3, 3, vec![1.0f64, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0]);
+        let norm: f64 = m.norm_fro();
+        let expected = (285.0f64).sqrt();
+        assert!((norm - expected).abs() < 1e-10f64);
+    }
+
+    #[test]
+    fn test_frobenius_norm_identity() {
+        // Identity matrix of size n has Frobenius norm = sqrt(n)
+        let m = Matrix::<f64>::identity(3, 3);
+        let norm = m.norm_fro();
+        let expected = (3.0f64).sqrt();
+        assert!((norm - expected).abs() < 1e-10f64);
+    }
+
+    #[test]
+    fn test_frobenius_norm_zero() {
+        let m = Matrix::<f64>::zero(3, 3);
+        let norm = m.norm_fro();
+        assert_eq!(norm, 0.0);
+    }
+
+    #[test]
+    fn test_frobenius_norm_single_element() {
+        let m = Matrix::new(1, 1, vec![5.0]);
+        let norm = m.norm_fro();
+        assert_eq!(norm, 5.0);
+    }
+
+    #[test]
+    fn test_frobenius_norm_negative_values() {
+        // [[-1, 2], [-3, 4]]
+        // ||A||_F = sqrt(1 + 4 + 9 + 16) = sqrt(30)
+        let m = Matrix::new(2, 2, vec![-1.0f64, 2.0, -3.0, 4.0]);
+        let norm: f64 = m.norm_fro();
+        let expected = (30.0f64).sqrt();
+        assert!((norm - expected).abs() < 1e-10f64);
+    }
+
+    #[test]
+    fn test_frobenius_norm_rectangular() {
+        // [[1, 2, 3], [4, 5, 6]] (2x3)
+        // ||A||_F = sqrt(1 + 4 + 9 + 16 + 25 + 36) = sqrt(91) ≈ 9.539
+        let m = Matrix::new(2, 3, vec![1.0f64, 2.0, 3.0, 4.0, 5.0, 6.0]);
+        let norm: f64 = m.norm_fro();
+        let expected = (91.0f64).sqrt();
+        assert!((norm - expected).abs() < 1e-10f64);
+    }
+
+    #[test]
+    fn test_frobenius_norm_f32() {
+        let m = Matrix::new(2, 2, vec![3.0f32, 4.0, 0.0, 0.0]);
+        let norm = m.norm_fro();
+        let expected = 5.0f32; // sqrt(9 + 16) = 5
+        assert!((norm - expected).abs() < 1e-6);
+    }
+
+    #[test]
+    fn test_frobenius_norm_complex() {
+        use num_complex::Complex;
+        // [[1+i, 2], [0, 3i]]
+        // ||A||_F = sqrt(|1+i|^2 + |2|^2 + |0|^2 + |3i|^2)
+        //         = sqrt(2 + 4 + 0 + 9) = sqrt(15)
+        let m = Matrix::new(
+            2,
+            2,
+            vec![
+                Complex::new(1.0f64, 1.0),
+                Complex::new(2.0, 0.0),
+                Complex::new(0.0, 0.0),
+                Complex::new(0.0, 3.0),
+            ],
+        );
+        let norm: f64 = m.norm_fro();
+        let expected = (15.0f64).sqrt();
+        assert!((norm - expected).abs() < 1e-10f64);
+    }
+
+    #[test]
+    fn test_one_norm_2x2() {
+        // [[1, -7], [2, -4]]
+        // Column 0: |1| + |2| = 3
+        // Column 1: |-7| + |-4| = 11
+        // ||A||_1 = max(3, 11) = 11
+        let m = Matrix::new(2, 2, vec![1.0, -7.0, 2.0, -4.0]);
+        let norm = m.norm_one();
+        assert_eq!(norm, 11.0);
+    }
+
+    #[test]
+    fn test_one_norm_3x3() {
+        // [[1, 2, 3], [4, 5, 6], [7, 8, 9]]
+        // Column 0: 1 + 4 + 7 = 12
+        // Column 1: 2 + 5 + 8 = 15
+        // Column 2: 3 + 6 + 9 = 18
+        // ||A||_1 = 18
+        let m = Matrix::new(3, 3, vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0]);
+        let norm = m.norm_one();
+        assert_eq!(norm, 18.0);
+    }
+
+    #[test]
+    fn test_one_norm_identity() {
+        // Identity matrix has one 1 per column, so ||I||_1 = 1
+        let m = Matrix::<f64>::identity(5, 5);
+        let norm = m.norm_one();
+        assert_eq!(norm, 1.0);
+    }
+
+    #[test]
+    fn test_one_norm_zero() {
+        let m = Matrix::<f64>::zero(3, 3);
+        let norm = m.norm_one();
+        assert_eq!(norm, 0.0);
+    }
+
+    #[test]
+    fn test_one_norm_single_element() {
+        let m = Matrix::new(1, 1, vec![-5.0]);
+        let norm = m.norm_one();
+        assert_eq!(norm, 5.0);
+    }
+
+    #[test]
+    fn test_one_norm_rectangular() {
+        // [[1, 2, 3], [4, 5, 6]] (2x3)
+        // Column 0: 1 + 4 = 5
+        // Column 1: 2 + 5 = 7
+        // Column 2: 3 + 6 = 9
+        // ||A||_1 = 9
+        let m = Matrix::new(2, 3, vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0]);
+        let norm = m.norm_one();
+        assert_eq!(norm, 9.0);
+    }
+
+    #[test]
+    fn test_one_norm_negative_values() {
+        // [[1, -2], [-3, 4]]
+        // Column 0: |1| + |-3| = 4
+        // Column 1: |-2| + |4| = 6
+        // ||A||_1 = 6
+        let m = Matrix::new(2, 2, vec![1.0, -2.0, -3.0, 4.0]);
+        let norm = m.norm_one();
+        assert_eq!(norm, 6.0);
+    }
+
+    #[test]
+    fn test_one_norm_f32() {
+        let m = Matrix::new(2, 2, vec![1.0f32, 2.0, 3.0, 4.0]);
+        let norm = m.norm_one();
+        assert_eq!(norm, 6.0f32); // max(1+3, 2+4) = max(4, 6) = 6
+    }
+
+    #[test]
+    fn test_one_norm_complex() {
+        use num_complex::Complex;
+        // [[1+i, 2], [3, 4i]]
+        // Column 0: |1+i| + |3| = sqrt(2) + 3
+        // Column 1: |2| + |4i| = 2 + 4 = 6
+        let m = Matrix::new(
+            2,
+            2,
+            vec![
+                Complex::new(1.0f64, 1.0),
+                Complex::new(2.0, 0.0),
+                Complex::new(3.0, 0.0),
+                Complex::new(0.0, 4.0),
+            ],
+        );
+        let norm: f64 = m.norm_one();
+        let col0_sum = 2.0f64.sqrt() + 3.0;
+        let col1_sum = 6.0;
+        let expected = col0_sum.max(col1_sum);
+        assert!((norm - expected).abs() < 1e-10f64);
+    }
+
+    #[test]
+    fn test_inf_norm_2x2() {
+        // [[1, -7], [2, -4]]
+        // Row 0: |1| + |-7| = 8
+        // Row 1: |2| + |-4| = 6
+        // ||A||_∞ = max(8, 6) = 8
+        let m = Matrix::new(2, 2, vec![1.0, -7.0, 2.0, -4.0]);
+        let norm = m.norm_inf();
+        assert_eq!(norm, 8.0);
+    }
+
+    #[test]
+    fn test_inf_norm_3x3() {
+        // [[1, 2, 3], [4, 5, 6], [7, 8, 9]]
+        // Row 0: 1 + 2 + 3 = 6
+        // Row 1: 4 + 5 + 6 = 15
+        // Row 2: 7 + 8 + 9 = 24
+        // ||A||_∞ = 24
+        let m = Matrix::new(3, 3, vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0]);
+        let norm = m.norm_inf();
+        assert_eq!(norm, 24.0);
+    }
+
+    #[test]
+    fn test_inf_norm_identity() {
+        // Identity matrix has one 1 per row, so ||I||_∞ = 1
+        let m = Matrix::<f64>::identity(5, 5);
+        let norm = m.norm_inf();
+        assert_eq!(norm, 1.0);
+    }
+
+    #[test]
+    fn test_inf_norm_zero() {
+        let m = Matrix::<f64>::zero(3, 3);
+        let norm = m.norm_inf();
+        assert_eq!(norm, 0.0);
+    }
+
+    #[test]
+    fn test_inf_norm_single_element() {
+        let m = Matrix::new(1, 1, vec![-5.0]);
+        let norm = m.norm_inf();
+        assert_eq!(norm, 5.0);
+    }
+
+    #[test]
+    fn test_inf_norm_rectangular() {
+        // [[1, 2, 3], [4, 5, 6]] (2x3)
+        // Row 0: 1 + 2 + 3 = 6
+        // Row 1: 4 + 5 + 6 = 15
+        // ||A||_∞ = 15
+        let m = Matrix::new(2, 3, vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0]);
+        let norm = m.norm_inf();
+        assert_eq!(norm, 15.0);
+    }
+
+    #[test]
+    fn test_inf_norm_negative_values() {
+        // [[1, -2], [-3, 4]]
+        // Row 0: |1| + |-2| = 3
+        // Row 1: |-3| + |4| = 7
+        // ||A||_∞ = 7
+        let m = Matrix::new(2, 2, vec![1.0, -2.0, -3.0, 4.0]);
+        let norm = m.norm_inf();
+        assert_eq!(norm, 7.0);
+    }
+
+    #[test]
+    fn test_inf_norm_f32() {
+        let m = Matrix::new(2, 2, vec![1.0f32, 2.0, 3.0, 4.0]);
+        let norm = m.norm_inf();
+        assert_eq!(norm, 7.0f32); // max(1+2, 3+4) = max(3, 7) = 7
+    }
+
+    #[test]
+    fn test_inf_norm_complex() {
+        use num_complex::Complex;
+        // [[1+i, 2], [3, 4i]]
+        // Row 0: |1+i| + |2| = sqrt(2) + 2
+        // Row 1: |3| + |4i| = 3 + 4 = 7
+        let m = Matrix::new(
+            2,
+            2,
+            vec![
+                Complex::new(1.0f64, 1.0),
+                Complex::new(2.0, 0.0),
+                Complex::new(3.0, 0.0),
+                Complex::new(0.0, 4.0),
+            ],
+        );
+        let norm: f64 = m.norm_inf();
+        let row0_sum = 2.0f64.sqrt() + 2.0;
+        let row1_sum = 7.0;
+        let expected = row0_sum.max(row1_sum);
+        assert!((norm - expected).abs() < 1e-10f64);
+    }
+
+    #[test]
+    fn test_norm_relationship_bounds() {
+        // For any matrix: max(||A||_∞, ||A||_1) <= ||A||_F <= sqrt(m*n) * max(||A||_∞, ||A||_1)
+        // Also: ||A||_F <= sqrt(m) * ||A||_∞ and ||A||_F <= sqrt(n) * ||A||_1
+        let m = Matrix::new(3, 3, vec![1.0f64, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0]);
+        let fro: f64 = m.norm_fro();
+        let one: f64 = m.norm_one();
+        let inf: f64 = m.norm_inf();
+
+        // Upper bounds: ||A||_F <= sqrt(m) * ||A||_∞ and ||A||_F <= sqrt(n) * ||A||_1
+        let m_rows = 3.0f64;
+        let n_cols = 3.0f64;
+        assert!(fro <= m_rows.sqrt() * inf);
+        assert!(fro <= n_cols.sqrt() * one);
+    }
+
+    #[test]
+    fn test_norms_tall_matrix() {
+        // Test with a tall matrix (more rows than columns)
+        let m = Matrix::new(4, 2, vec![1.0f64, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0]);
+
+        // Frobenius: sqrt(1+4+9+16+25+36+49+64) = sqrt(204)
+        let fro: f64 = m.norm_fro();
+        assert!((fro - (204.0f64).sqrt()).abs() < 1e-10f64);
+
+        // 1-norm: max(1+3+5+7, 2+4+6+8) = max(16, 20) = 20
+        let one: f64 = m.norm_one();
+        assert_eq!(one, 20.0);
+
+        // Inf-norm: max(1+2, 3+4, 5+6, 7+8) = max(3, 7, 11, 15) = 15
+        let inf: f64 = m.norm_inf();
+        assert_eq!(inf, 15.0);
+    }
+
+    #[test]
+    fn test_norms_wide_matrix() {
+        // Test with a wide matrix (more columns than rows)
+        let m = Matrix::new(2, 4, vec![1.0f64, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0]);
+
+        // Frobenius: sqrt(1+4+9+16+25+36+49+64) = sqrt(204)
+        let fro: f64 = m.norm_fro();
+        assert!((fro - (204.0f64).sqrt()).abs() < 1e-10f64);
+
+        // 1-norm: max(1+5, 2+6, 3+7, 4+8) = max(6, 8, 10, 12) = 12
+        let one: f64 = m.norm_one();
+        assert_eq!(one, 12.0);
+
+        // Inf-norm: max(1+2+3+4, 5+6+7+8) = max(10, 26) = 26
+        let inf: f64 = m.norm_inf();
+        assert_eq!(inf, 26.0);
+    }
+}

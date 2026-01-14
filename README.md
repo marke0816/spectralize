@@ -17,6 +17,7 @@ A high-performance, generic matrix library for Rust with support for real, integ
   - Trace (sum of diagonal elements)
   - Determinant calculation (via PLU decomposition)
   - Invertibility checking
+  - Matrix norms (Frobenius, 1-norm, infinity norm)
 - **Matrix Construction**:
   - Zero matrices
   - Identity matrices
@@ -28,7 +29,7 @@ A high-performance, generic matrix library for Rust with support for real, integ
   - Row and column appending
 - **Memory Efficient**: Optimized implementations with in-place mutations where possible
 - **Type Safe**: Compile-time dimension checking through Rust's type system
-- **Comprehensive Test Suite**: 155+ tests covering all operations
+- **Comprehensive Test Suite**: 185+ tests covering all operations
 - **Numerical Stability**: PLU decomposition with partial pivoting for robust computations
 
 ## Installation
@@ -164,6 +165,45 @@ let det_singular = singular.determinant();  // 0.0
 let invertible_singular = singular.is_invertible();  // false
 ```
 
+### Matrix Norms
+
+Matrix norms provide measures of matrix magnitude useful for numerical analysis, condition number computation, and error estimation.
+
+```rust
+use spectralize::Matrix;
+
+let m = Matrix::new(2, 2, vec![1.0, 2.0, 3.0, 4.0]);
+
+// Frobenius norm (Euclidean norm)
+// ||A||_F = sqrt(sum of |a_ij|^2)
+let fro_norm = m.norm_fro();  // sqrt(1 + 4 + 9 + 16) = sqrt(30) ≈ 5.477
+
+// 1-norm (maximum absolute column sum)
+// ||A||_1 = max_j sum_i |a_ij|
+let one_norm = m.norm_one();  // max(|1|+|3|, |2|+|4|) = max(4, 6) = 6.0
+
+// Infinity norm (maximum absolute row sum)
+// ||A||_∞ = max_i sum_j |a_ij|
+let inf_norm = m.norm_inf();  // max(|1|+|2|, |3|+|4|) = max(3, 7) = 7.0
+```
+
+Norms work with all numeric types including complex numbers:
+
+```rust
+use spectralize::Matrix;
+use num_complex::Complex;
+
+let m = Matrix::new(2, 2, vec![
+    Complex::new(1.0, 1.0),  // 1 + i
+    Complex::new(2.0, 0.0),  // 2
+    Complex::new(0.0, 0.0),  // 0
+    Complex::new(0.0, 3.0),  // 3i
+]);
+
+// For complex matrices, norms return the real underlying type (f64)
+let fro_norm: f64 = m.norm_fro();  // sqrt(|1+i|^2 + |2|^2 + |3i|^2) = sqrt(15)
+```
+
 ### Matrix Concatenation
 
 ```rust
@@ -230,6 +270,9 @@ let perm = Matrix::<f64>::perm(4, 4, vec![2, 4, 3, 1]);
 - `trace()` - Trace (sum of diagonal elements, square matrices only)
 - `determinant()` - Determinant via PLU decomposition with partial pivoting (square matrices only)
 - `is_invertible()` - Check if matrix is invertible (non-singular)
+- `norm_fro()` - Frobenius norm (Euclidean norm): ||A||_F = sqrt(Σ|a_ij|²)
+- `norm_one()` - 1-norm (maximum absolute column sum): ||A||_1 = max_j Σ_i |a_ij|
+- `norm_inf()` - Infinity norm (maximum absolute row sum): ||A||_∞ = max_i Σ_j |a_ij|
 
 #### Concatenation
 - `with_cols(other)` - Horizontal concatenation
@@ -284,7 +327,8 @@ src/
     ├── arithmetic.rs   # Arithmetic operations (Add, Sub, Mul, etc.)
     ├── append.rs       # Matrix concatenation operations
     ├── decomposition.rs # PLU decomposition, determinant, and invertibility
-    └── tests.rs        # Comprehensive test suite (155+ tests)
+    ├── norm.rs         # Matrix norms (Frobenius, 1-norm, infinity norm)
+    └── tests.rs        # Comprehensive test suite (185+ tests)
 examples/
 └── complex_demo.rs     # Example using complex numbers
 ```
@@ -324,3 +368,58 @@ Example computation:
 // det(A) = det(P)^(-1) * det(L) * det(U)
 //        = (-1)^(row_swaps) * 1 * product(diagonal of U)
 ```
+
+### Matrix Norms
+
+Matrix norms are essential tools in numerical linear algebra for measuring matrix magnitude, estimating errors, and analyzing numerical stability. Spectralize implements three fundamental matrix norms with performance-optimized algorithms:
+
+#### Frobenius Norm (Euclidean Norm)
+
+**Mathematical Definition:** `||A||_F = sqrt(Σ_i Σ_j |a_ij|²)`
+
+The Frobenius norm is the square root of the sum of absolute squares of all matrix elements. It generalizes the Euclidean vector norm to matrices.
+
+**Use Cases:**
+- **Convergence criteria**: Common stopping condition for iterative algorithms (e.g., "stop when ||A - A_prev||_F < tolerance")
+- **Matrix approximation**: Natural choice for least squares problems and matrix factorization
+- **Condition number estimation**: Used in assessing sensitivity of matrix operations to numerical errors
+- **General magnitude measure**: Intuitive "size" metric for matrices
+
+**Implementation:** Single-pass O(mn) algorithm using fold-based accumulation of squared absolute values, followed by a single square root operation. Efficient and cache-friendly.
+
+#### 1-Norm (Maximum Absolute Column Sum)
+
+**Mathematical Definition:** `||A||_1 = max_j Σ_i |a_ij|`
+
+The 1-norm computes the sum of absolute values for each column and returns the maximum.
+
+**Use Cases:**
+- **Condition number computation**: Used in `cond_1(A) = ||A||_1 * ||A^(-1)||_1` to measure how close a matrix is to being singular
+- **Error bounds**: Provides tight bounds for error propagation in linear system solving
+- **Stability analysis**: Essential for analyzing Gaussian elimination and other decomposition algorithms
+- **Sparse matrix analysis**: Particularly efficient for column-oriented sparse matrix operations
+
+**Implementation:** Pre-allocates a column sum vector and performs a single pass through the data with column-wise accumulation, then finds the maximum. Optimized despite row-major storage.
+
+#### Infinity Norm (Maximum Absolute Row Sum)
+
+**Mathematical Definition:** `||A||_∞ = max_i Σ_j |a_ij|`
+
+The infinity norm computes the sum of absolute values for each row and returns the maximum.
+
+**Use Cases:**
+- **Dual to 1-norm**: Since ||A||_∞ = ||A^T||_1, useful in theoretical analysis
+- **Perturbation bounds**: Provides bounds on how matrix entry perturbations affect solutions
+- **Iterative solver analysis**: Used in convergence criteria for Jacobi and Gauss-Seidel methods
+- **Row-reduction algorithms**: Natural choice for analyzing row-wise operations like forward/backward substitution
+
+**Implementation:** Most efficient norm for row-major storage. Uses sequential slice iteration for cache-friendly memory access, computing row sums with a fold operation and tracking the maximum.
+
+#### Type System Support
+
+All three norms work seamlessly with:
+- **Real types**: `f32`, `f64` (returns same type)
+- **Complex types**: `Complex<f32>`, `Complex<f64>` (returns underlying real type: `f32` or `f64`)
+- **Integer types**: Not typically used for norms in numerical analysis, but supported where mathematically valid
+
+The norm implementations use helper traits (`Abs` and `Sqrt`) to maintain zero-cost abstractions while supporting diverse numeric types.
