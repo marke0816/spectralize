@@ -1,6 +1,40 @@
 use super::{Matrix, MatrixElement};
 use std::ops::{Add, Mul, Sub};
 
+fn mul_with_transposed<T>(lhs: &Matrix<T>, rhs_t: &Matrix<T>) -> Matrix<T>
+where
+    T: MatrixElement + std::fmt::Debug + Mul<Output = T> + Add<Output = T>,
+{
+    assert_eq!(
+        lhs.cols, rhs_t.cols,
+        "Matrix dimensions incompatible for multiplication"
+    );
+
+    let m = lhs.rows;
+    let n = lhs.cols;
+    let p = rhs_t.rows;
+
+    let mut data = Vec::with_capacity(m * p);
+
+    for i in 0..m {
+        let row = &lhs.data[i * n..i * n + n];
+        for j in 0..p {
+            let col = &rhs_t.data[j * n..j * n + n];
+            let mut sum = T::zero();
+            for k in 0..n {
+                sum = sum + (row[k].clone() * col[k].clone());
+            }
+            data.push(sum);
+        }
+    }
+
+    Matrix {
+        rows: m,
+        cols: p,
+        data,
+    }
+}
+
 // Matrix + Matrix (element-wise addition)
 impl<T> Add for Matrix<T>
 where
@@ -8,13 +42,13 @@ where
 {
     type Output = Matrix<T>;
 
-    fn add(mut self, mut other: Matrix<T>) -> Matrix<T> {
+    fn add(mut self, other: Matrix<T>) -> Matrix<T> {
         assert_eq!(self.rows, other.rows, "Row dimensions must match");
         assert_eq!(self.cols, other.cols, "Column dimensions must match");
 
-        // In-place mutation for maximum efficiency - move out of both owned matrices
-        for i in 0..self.data.len() {
-            self.data[i] = std::mem::replace(&mut self.data[i], T::zero()) + std::mem::replace(&mut other.data[i], T::zero());
+        // In-place mutation without extra zeroing
+        for (lhs, rhs) in self.data.iter_mut().zip(other.data.into_iter()) {
+            *lhs = lhs.clone() + rhs;
         }
 
         self
@@ -32,9 +66,9 @@ where
         assert_eq!(self.rows, other.rows, "Row dimensions must match");
         assert_eq!(self.cols, other.cols, "Column dimensions must match");
 
-        // In-place mutation - move out of owned self, clone from borrowed other
-        for i in 0..self.data.len() {
-            self.data[i] = std::mem::replace(&mut self.data[i], T::zero()) + other.data[i].clone();
+        // In-place mutation without extra zeroing
+        for (lhs, rhs) in self.data.iter_mut().zip(other.data.iter()) {
+            *lhs = lhs.clone() + rhs.clone();
         }
 
         self
@@ -73,13 +107,13 @@ where
 {
     type Output = Matrix<T>;
 
-    fn sub(mut self, mut other: Matrix<T>) -> Matrix<T> {
+    fn sub(mut self, other: Matrix<T>) -> Matrix<T> {
         assert_eq!(self.rows, other.rows, "Row dimensions must match");
         assert_eq!(self.cols, other.cols, "Column dimensions must match");
 
-        // In-place mutation for maximum efficiency - move out of both owned matrices
-        for i in 0..self.data.len() {
-            self.data[i] = std::mem::replace(&mut self.data[i], T::zero()) - std::mem::replace(&mut other.data[i], T::zero());
+        // In-place mutation without extra zeroing
+        for (lhs, rhs) in self.data.iter_mut().zip(other.data.into_iter()) {
+            *lhs = lhs.clone() - rhs;
         }
 
         self
@@ -97,9 +131,9 @@ where
         assert_eq!(self.rows, other.rows, "Row dimensions must match");
         assert_eq!(self.cols, other.cols, "Column dimensions must match");
 
-        // In-place mutation - move out of owned self, clone from borrowed other
-        for i in 0..self.data.len() {
-            self.data[i] = std::mem::replace(&mut self.data[i], T::zero()) - other.data[i].clone();
+        // In-place mutation without extra zeroing
+        for (lhs, rhs) in self.data.iter_mut().zip(other.data.iter()) {
+            *lhs = lhs.clone() - rhs.clone();
         }
 
         self
@@ -144,28 +178,8 @@ where
             "Matrix dimensions incompatible for multiplication"
         );
 
-        // Standard matrix multiplication: (m x n) * (n x p) = (m x p)
-        let m = self.rows;
-        let n = self.cols;
-        let p = other.cols;
-
-        let mut data = Vec::with_capacity(m * p);
-
-        for i in 0..m {
-            for j in 0..p {
-                let mut sum = T::zero();
-                for k in 0..n {
-                    sum = sum + (self.data[i * n + k].clone() * other.data[k * p + j].clone());
-                }
-                data.push(sum);
-            }
-        }
-
-        Matrix {
-            rows: m,
-            cols: p,
-            data,
-        }
+        let other_t = other.transpose();
+        mul_with_transposed(&self, &other_t)
     }
 }
 
@@ -182,28 +196,8 @@ where
             "Matrix dimensions incompatible for multiplication"
         );
 
-        // Standard matrix multiplication: (m x n) * (n x p) = (m x p)
-        let m = self.rows;
-        let n = self.cols;
-        let p = other.cols;
-
-        let mut data = Vec::with_capacity(m * p);
-
-        for i in 0..m {
-            for j in 0..p {
-                let mut sum = T::zero();
-                for k in 0..n {
-                    sum = sum + (self.data[i * n + k].clone() * other.data[k * p + j].clone());
-                }
-                data.push(sum);
-            }
-        }
-
-        Matrix {
-            rows: m,
-            cols: p,
-            data,
-        }
+        let other_t = other.transpose();
+        mul_with_transposed(&self, &other_t)
     }
 }
 
@@ -220,28 +214,8 @@ where
             "Matrix dimensions incompatible for multiplication"
         );
 
-        // Standard matrix multiplication: (m x n) * (n x p) = (m x p)
-        let m = self.rows;
-        let n = self.cols;
-        let p = other.cols;
-
-        let mut data = Vec::with_capacity(m * p);
-
-        for i in 0..m {
-            for j in 0..p {
-                let mut sum = T::zero();
-                for k in 0..n {
-                    sum = sum + (self.data[i * n + k].clone() * other.data[k * p + j].clone());
-                }
-                data.push(sum);
-            }
-        }
-
-        Matrix {
-            rows: m,
-            cols: p,
-            data,
-        }
+        let other_t = other.transpose();
+        mul_with_transposed(self, &other_t)
     }
 }
 
@@ -253,9 +227,9 @@ where
     type Output = Matrix<T>;
 
     fn mul(mut self, scalar: T) -> Matrix<T> {
-        // In-place mutation for maximum efficiency - move out of owned matrix
-        for i in 0..self.data.len() {
-            self.data[i] = std::mem::replace(&mut self.data[i], T::zero()) * scalar.clone();
+        // In-place mutation without extra zeroing
+        for elem in self.data.iter_mut() {
+            *elem = elem.clone() * scalar.clone();
         }
         self
     }

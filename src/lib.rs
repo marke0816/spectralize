@@ -1,3 +1,3 @@
 pub mod matrix;
 
-pub use matrix::{Matrix, MatrixElement};
+pub use matrix::{Matrix, MatrixElement, MatrixError};

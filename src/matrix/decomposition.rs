@@ -1,6 +1,143 @@
-use super::{Matrix, MatrixElement, ToleranceOps};
+use super::{Matrix, MatrixElement, NanCheck, ToleranceOps};
 use crate::matrix::norm::Abs;
 use std::ops::{Add, Div, Mul, Neg, Sub};
+
+fn bareiss_determinant<T>(matrix: &Matrix<T>) -> T
+where
+    T: MatrixElement
+        + std::fmt::Debug
+        + Clone
+        + PivotOrd
+        + PartialEq
+        + Mul<Output = T>
+        + Sub<Output = T>
+        + Div<Output = T>
+        + Neg<Output = T>,
+{
+    // NOTE: Bareiss keeps intermediate values integral but can overflow for large
+    // integer inputs (no big-int support here).
+    assert_eq!(
+        matrix.rows(),
+        matrix.cols(),
+        "Determinant requires a square matrix"
+    );
+
+    let n = matrix.rows();
+    if n == 0 {
+        return T::one();
+    }
+
+    let mut data = matrix.data.clone();
+    let mut row_swaps = 0usize;
+    let mut prev_pivot = T::one();
+
+    for k in 0..n {
+        let mut pivot_row = k;
+        let mut max_key = data[k * n + k].pivot_key();
+        for i in (k + 1)..n {
+            let key = data[i * n + k].pivot_key();
+            if key > max_key {
+                max_key = key;
+                pivot_row = i;
+            }
+        }
+
+        if data[pivot_row * n + k] == T::zero() {
+            return T::zero();
+        }
+
+        if pivot_row != k {
+            for j in 0..n {
+                data.swap(k * n + j, pivot_row * n + j);
+            }
+            row_swaps += 1;
+        }
+
+        let pivot = data[k * n + k].clone();
+
+        for i in (k + 1)..n {
+            for j in (k + 1)..n {
+                let idx = i * n + j;
+                let left = data[idx].clone() * pivot.clone();
+                let right = data[i * n + k].clone() * data[k * n + j].clone();
+                data[idx] = (left - right) / prev_pivot.clone();
+            }
+            data[i * n + k] = T::zero();
+        }
+
+        prev_pivot = pivot;
+    }
+
+    let mut det = data[(n - 1) * n + (n - 1)].clone();
+    if row_swaps % 2 == 1 {
+        det = -det;
+    }
+    det
+}
+
+fn bareiss_is_invertible<T>(matrix: &Matrix<T>) -> bool
+where
+    T: MatrixElement
+        + std::fmt::Debug
+        + Clone
+        + PivotOrd
+        + PartialEq
+        + Mul<Output = T>
+        + Sub<Output = T>
+        + Div<Output = T>,
+{
+    assert_eq!(
+        matrix.rows(),
+        matrix.cols(),
+        "Matrix must be square for invertibility check"
+    );
+
+    let n = matrix.rows();
+    if n == 0 {
+        return true;
+    }
+
+    let mut data = matrix.data.clone();
+    let mut prev_pivot = T::one();
+
+    for k in 0..n {
+        let mut pivot_row = k;
+        let mut max_key = data[k * n + k].pivot_key();
+        for i in (k + 1)..n {
+            let key = data[i * n + k].pivot_key();
+            if key > max_key {
+                max_key = key;
+                pivot_row = i;
+            }
+        }
+
+        if data[pivot_row * n + k] == T::zero() {
+            return false;
+        }
+
+        if pivot_row != k {
+            for j in 0..n {
+                data.swap(k * n + j, pivot_row * n + j);
+            }
+        }
+
+        let pivot = data[k * n + k].clone();
+
+        for i in (k + 1)..n {
+            for j in (k + 1)..n {
+                let idx = i * n + j;
+                let left = data[idx].clone() * pivot.clone();
+                let right = data[i * n + k].clone() * data[k * n + j].clone();
+                data[idx] = (left - right) / prev_pivot.clone();
+            }
+            data[i * n + k] = T::zero();
+        }
+
+        prev_pivot = pivot;
+    }
+
+    data[(n - 1) * n + (n - 1)] != T::zero()
+}
 
 /// Internal helper struct that stores the result of PLU decomposition.
 /// The L and U matrices are stored in a single matrix:
@@ -15,8 +152,6 @@ struct PLUDecomposition<T: MatrixElement + std::fmt::Debug + ToleranceOps> {
     row_swaps: usize,
     /// Whether the matrix is singular (has a zero/negligible pivot)
     is_singular: bool,
-    /// The tolerance threshold used for pivot comparison (None for exact arithmetic)
-    tolerance: Option<T::Abs>,
 }
 
 /// Trait for types that support magnitude comparison for pivoting.
@@ -83,7 +218,7 @@ impl PivotOrd for i8 {
     type Key = Self;
 
     fn pivot_key(&self) -> Self::Key {
-        self.abs()
+        self.saturating_abs()
     }
 }
 
@@ -91,7 +226,7 @@ impl PivotOrd for i16 {
     type Key = Self;
 
     fn pivot_key(&self) -> Self::Key {
-        self.abs()
+        self.saturating_abs()
     }
 }
 
@@ -99,7 +234,7 @@ impl PivotOrd for i32 {
     type Key = Self;
 
     fn pivot_key(&self) -> Self::Key {
-        self.abs()
+        self.saturating_abs()
     }
 }
 
@@ -107,7 +242,7 @@ impl PivotOrd for i64 {
     type Key = Self;
 
     fn pivot_key(&self) -> Self::Key {
-        self.abs()
+        self.saturating_abs()
     }
 }
 
@@ -115,7 +250,7 @@ impl PivotOrd for i128 {
     type Key = Self;
 
     fn pivot_key(&self) -> Self::Key {
-        self.abs()
+        self.saturating_abs()
     }
 }
 
@@ -123,7 +258,7 @@ impl PivotOrd for isize {
     type Key = Self;
 
     fn pivot_key(&self) -> Self::Key {
-        self.abs()
+        self.saturating_abs()
     }
 }
 
@@ -256,7 +391,7 @@ where
     fn decompose(matrix: &Matrix<T>, tolerance: Option<T::Abs>) -> Self
     where
         T: Clone + Abs<Output = T::Abs>,
-        T::Abs: MatrixElement + Add<Output = T::Abs> + Mul<Output = T::Abs> + PartialOrd,
+        T::Abs: MatrixElement + Add<Output = T::Abs> + Mul<Output = T::Abs> + PartialOrd + NanCheck,
     {
         assert_eq!(
             matrix.rows(),
@@ -296,14 +431,18 @@ where
         let mut is_singular = false;
 
         // Gaussian elimination with partial pivoting and tolerance-aware checks
+        // Use direct indexing to avoid repeated bounds checks and clones in hot loops.
+        let cols = lu.cols;
+        let data = &mut lu.data;
+
         for k in 0..n {
             // PARTIAL PIVOTING: Find the row with the largest absolute value in column k
             // This improves numerical stability and ensures we don't divide by small numbers
             let mut pivot_row = k;
-            let mut max_pivot_key = lu.get(k, k).pivot_key();
+            let mut max_pivot_key = data[k * cols + k].pivot_key();
 
             for i in (k + 1)..n {
-                let candidate_key = lu.get(i, k).pivot_key();
+                let candidate_key = data[i * cols + k].pivot_key();
                 if candidate_key > max_pivot_key {
                     max_pivot_key = candidate_key;
                     pivot_row = i;
@@ -313,10 +452,16 @@ where
             // TOLERANCE-AWARE PIVOT CHECK: Centralized singularity detection
             // This is the ONLY place where we check if a pivot is "too small"
             // Both determinant() and is_invertible() rely on this flag
-            let pivot_magnitude = lu.get(pivot_row, k).abs_val();
+            let pivot_value = data[pivot_row * cols + k].clone();
+            let pivot_magnitude = pivot_value.abs_val();
+            if pivot_magnitude.is_nan() {
+                is_singular = true;
+                continue;
+            }
+
             let is_negligible = match &effective_tolerance {
                 Some(tol) => pivot_magnitude <= *tol,
-                None => lu.get(pivot_row, k) == T::zero(), // Exact check for integers
+                None => pivot_value == T::zero(), // Exact check for integers
             };
 
             if is_negligible {
@@ -330,30 +475,31 @@ where
             // Each swap changes the sign of the determinant
             if pivot_row != k {
                 for j in 0..n {
-                    let temp = lu.get(k, j);
-                    lu.set(k, j, lu.get(pivot_row, j));
-                    lu.set(pivot_row, j, temp);
+                    data.swap(k * cols + j, pivot_row * cols + j);
                 }
                 row_swaps += 1;
             }
 
             // ELIMINATION: Zero out all entries below the pivot in column k
-            let pivot = lu.get(k, k);
+            let pivot = data[k * cols + k].clone();
 
             for i in (k + 1)..n {
                 // Compute multiplier: L[i,k] = A[i,k] / A[k,k]
-                let multiplier = lu.get(i, k) / pivot.clone();
+                let idx_ik = i * cols + k;
+                let multiplier = data[idx_ik].clone() / pivot.clone();
 
                 // Store the multiplier in lower triangle (L matrix)
                 // Note: diagonal of L is implicitly 1, so we don't store it
-                lu.set(i, k, multiplier.clone());
+                data[idx_ik] = multiplier.clone();
 
                 // Update row i: row[i] -= multiplier * row[k]
                 // Only need to update entries at and right of the diagonal
                 // (entries to the left are already processed or will store L)
                 for j in (k + 1)..n {
-                    let update = lu.get(i, j) - (multiplier.clone() * lu.get(k, j));
-                    lu.set(i, j, update);
+                    let idx = i * cols + j;
+                    let update = data[idx].clone()
+                        - (multiplier.clone() * data[k * cols + j].clone());
+                    data[idx] = update;
                 }
             }
         }
@@ -362,7 +508,6 @@ where
             lu,
             row_swaps,
             is_singular,
-            tolerance: effective_tolerance,
         }
     }
 
@@ -468,16 +613,20 @@ where
     /// let singular = Matrix::new(2, 2, vec![1.0, 2.0, 2.0, 4.0]);
     /// assert!(!singular.is_invertible());
     ///
-    /// // Nearly singular matrix (determinant ≈ 1e-15)
-    /// let nearly_singular = Matrix::new(2, 2, vec![1.0, 1.0, 1.0, 1.0 + 1e-15]);
+    /// // Nearly singular matrix (determinant ≈ 1e-18)
+    /// let nearly_singular = Matrix::new(2, 2, vec![1.0, 1.0, 1.0, 1.0 + 1e-18]);
     /// // Tolerance-aware check correctly identifies as nearly singular
     /// assert!(!nearly_singular.is_invertible());
     /// ```
     pub fn is_invertible(&self) -> bool
     where
         T: ToleranceOps + PivotOrd + Div<Output = T> + Mul<Output = T> + Sub<Output = T> + Clone + Abs<Output = T::Abs>,
-        T::Abs: MatrixElement + Add<Output = T::Abs> + Mul<Output = T::Abs> + PartialOrd,
+        T::Abs: MatrixElement + Add<Output = T::Abs> + Mul<Output = T::Abs> + PartialOrd + NanCheck,
     {
+        if T::epsilon().is_none() {
+            return bareiss_is_invertible(self);
+        }
+
         let decomp = PLUDecomposition::decompose(self, None);
         decomp.is_invertible()
     }
@@ -540,8 +689,12 @@ where
     pub fn is_invertible_with_tol(&self, tolerance: T::Abs) -> bool
     where
         T: ToleranceOps + PivotOrd + Div<Output = T> + Mul<Output = T> + Sub<Output = T> + Clone + Abs<Output = T::Abs>,
-        T::Abs: MatrixElement + Add<Output = T::Abs> + Mul<Output = T::Abs> + PartialOrd,
+        T::Abs: MatrixElement + Add<Output = T::Abs> + Mul<Output = T::Abs> + PartialOrd + NanCheck,
     {
+        if T::epsilon().is_none() {
+            return bareiss_is_invertible(self);
+        }
+
         let decomp = PLUDecomposition::decompose(self, Some(tolerance));
         decomp.is_invertible()
     }
@@ -590,15 +743,20 @@ where
     /// let singular = Matrix::new(2, 2, vec![1.0, 2.0, 2.0, 4.0]);
     /// assert_eq!(singular.determinant(), 0.0);
     ///
-    /// // Nearly singular: mathematically det ≈ 1e-15, but numerically zero
-    /// let nearly_singular = Matrix::new(2, 2, vec![1.0, 1.0, 1.0, 1.0 + 1e-15]);
+    /// // Nearly singular: mathematically det ≈ 1e-18, but numerically zero
+    /// let nearly_singular = Matrix::new(2, 2, vec![1.0, 1.0, 1.0, 1.0 + 1e-18]);
     /// assert_eq!(nearly_singular.determinant(), 0.0); // Treated as singular
     /// ```
     pub fn determinant(&self) -> T
     where
         T: ToleranceOps + PivotOrd + Div<Output = T> + Mul<Output = T> + Sub<Output = T> + Neg<Output = T> + Clone + Abs<Output = T::Abs>,
-        T::Abs: MatrixElement + Add<Output = T::Abs> + Mul<Output = T::Abs> + PartialOrd,
+        T::Abs: MatrixElement + Add<Output = T::Abs> + Mul<Output = T::Abs> + PartialOrd + NanCheck,
     {
+        // For integer types, this uses Bareiss elimination; large values may overflow.
+        if T::epsilon().is_none() {
+            return bareiss_determinant(self);
+        }
+
         let decomp = PLUDecomposition::decompose(self, None);
         decomp.determinant()
     }
@@ -642,18 +800,22 @@ where
     /// let nearly_singular = Matrix::new(2, 2, vec![1.0, 1.0, 1.0, 1.0 + 1e-10]);
     ///
     /// // Strict tolerance: small pivot accepted, determinant computed
-    /// let det_strict = nearly_singular.determinant_with_tol(1e-12);
-    /// assert!(det_strict.abs() > 0.0);
+    /// let det_strict: f64 = nearly_singular.determinant_with_tol(1e-12f64);
+    /// assert!(det_strict.abs() > 0.0f64);
     ///
     /// // Loose tolerance: small pivot rejected, determinant is zero
-    /// let det_loose = nearly_singular.determinant_with_tol(1e-8);
-    /// assert_eq!(det_loose, 0.0);
+    /// let det_loose = nearly_singular.determinant_with_tol(1e-8f64);
+    /// assert_eq!(det_loose, 0.0f64);
     /// ```
     pub fn determinant_with_tol(&self, tolerance: T::Abs) -> T
     where
         T: ToleranceOps + PivotOrd + Div<Output = T> + Mul<Output = T> + Sub<Output = T> + Neg<Output = T> + Clone + Abs<Output = T::Abs>,
-        T::Abs: MatrixElement + Add<Output = T::Abs> + Mul<Output = T::Abs> + PartialOrd,
+        T::Abs: MatrixElement + Add<Output = T::Abs> + Mul<Output = T::Abs> + PartialOrd + NanCheck,
     {
+        if T::epsilon().is_none() {
+            return bareiss_determinant(self);
+        }
+
         let decomp = PLUDecomposition::decompose(self, Some(tolerance));
         decomp.determinant()
     }

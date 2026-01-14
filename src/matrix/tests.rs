@@ -27,10 +27,66 @@ fn test_matrix_get_set() {
 }
 
 #[test]
+fn test_approx_eq_f64() {
+    let a = Matrix::new(2, 2, vec![1.0f64, 2.0, 3.0, 4.0]);
+    let b = Matrix::new(2, 2, vec![1.0f64, 2.0, 3.0, 4.0 + 1e-12]);
+    assert!(a.approx_eq(&b, 1e-10f64));
+    assert!(!a.approx_eq(&b, 1e-13f64));
+}
+
+#[test]
+fn test_approx_eq_dim_mismatch() {
+    let a = Matrix::new(2, 2, vec![1.0f64, 2.0, 3.0, 4.0]);
+    let b = Matrix::new(2, 3, vec![1.0f64, 2.0, 3.0, 4.0, 5.0, 6.0]);
+    assert!(!a.approx_eq(&b, 1e-6f64));
+}
+
+#[test]
 fn test_row_and_col() {
     let m = sample_matrix();
     assert_eq!(m.row(1), &[4.0, 5.0, 6.0]);
-    assert_eq!(m.col(2), vec![3.0, 6.0, 9.0]);
+    let col: Vec<f64> = m.col_iter(2).copied().collect();
+    assert_eq!(col, vec![3.0, 6.0, 9.0]);
+}
+
+#[test]
+fn test_col_iter() {
+    let m = sample_matrix();
+    let col: Vec<f64> = m.col_iter(2).copied().collect();
+    assert_eq!(col, vec![3.0, 6.0, 9.0]);
+}
+
+#[test]
+fn test_try_get_set_row_col() {
+    let mut m = sample_matrix();
+    assert_eq!(m.try_get(0, 0).unwrap(), 1.0);
+    assert!(m.try_get(3, 0).is_err());
+    assert!(m.try_get_ref(0, 3).is_err());
+    assert!(m.try_set(2, 2, 42.0).is_ok());
+    assert!(m.try_set(2, 3, 1.0).is_err());
+
+    assert!(m.try_row(1).is_ok());
+    assert!(m.try_row(3).is_err());
+    assert!(m.try_col(2).is_ok());
+    assert!(m.try_col(3).is_err());
+}
+
+#[test]
+fn test_try_trace_pow() {
+    let square = Matrix::new(2, 2, vec![1.0, 2.0, 3.0, 4.0]);
+    let rect = Matrix::new(2, 3, vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0]);
+
+    assert_eq!(square.try_trace().unwrap(), 5.0);
+    assert_eq!(
+        rect.try_trace().unwrap_err(),
+        MatrixError::DimensionMismatch
+    );
+
+    assert!(square.try_pow(2).is_ok());
+    assert_eq!(
+        rect.try_pow(2).unwrap_err(),
+        MatrixError::DimensionMismatch
+    );
 }
 
 #[test]
@@ -42,7 +98,7 @@ fn test_row_out_of_bounds() {
 #[test]
 #[should_panic]
 fn test_col_out_of_bounds() {
-    sample_matrix().col(5);
+    let _ = sample_matrix().col_iter(5).collect::<Vec<_>>();
 }
 
 #[test]
@@ -109,6 +165,51 @@ fn test_perm_invalid_index_zero() {
 #[should_panic]
 fn test_perm_invalid_index_out_of_bounds() {
     Matrix::<f64>::perm(3, 3, vec![1, 2, 4]);
+}
+
+#[test]
+#[should_panic(expected = "Permutation vector contains duplicate indices")]
+fn test_perm_duplicate_index() {
+    Matrix::<f64>::perm(3, 3, vec![1, 1, 2]);
+}
+
+#[test]
+fn test_try_perm_errors() {
+    let err = Matrix::<f64>::try_perm(3, 3, vec![1, 2])
+        .expect_err("expected length mismatch");
+    assert_eq!(err, MatrixError::PermutationLengthMismatch);
+
+    let err = Matrix::<f64>::try_perm(3, 3, vec![1, 2, 4])
+        .expect_err("expected index out of bounds");
+    assert_eq!(err, MatrixError::PermutationIndexOutOfBounds);
+
+    let err = Matrix::<f64>::try_perm(3, 3, vec![1, 1, 2])
+        .expect_err("expected duplicate index");
+    assert_eq!(err, MatrixError::PermutationDuplicateIndex);
+}
+
+#[test]
+fn test_try_concat_and_ops() {
+    let a = Matrix::new(2, 2, vec![1.0, 2.0, 3.0, 4.0]);
+    let b = Matrix::new(2, 2, vec![5.0, 6.0, 7.0, 8.0]);
+    let c = Matrix::new(3, 2, vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0]);
+    let d = Matrix::new(2, 3, vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0]);
+
+    assert!(a.try_with_cols(&b).is_ok());
+    assert!(a.try_with_cols(&c).is_err());
+    assert!(a.try_with_rows(&b).is_ok());
+    assert!(a.try_with_rows(&d).is_err());
+    assert!(a.try_with_row_vec(&[1.0, 2.0]).is_ok());
+    assert!(a.try_with_row_vec(&[1.0, 2.0, 3.0]).is_err());
+    assert!(a.try_with_col_vec(&[1.0, 2.0]).is_ok());
+    assert!(a.try_with_col_vec(&[1.0, 2.0, 3.0]).is_err());
+
+    assert!(a.try_add(&b).is_ok());
+    assert!(a.try_add(&c).is_err());
+    assert!(a.try_sub(&b).is_ok());
+    assert!(a.try_sub(&c).is_err());
+    assert!(a.try_mul(&b).is_ok());
+    assert!(a.try_mul(&c).is_err());
 }
 
 #[test]
@@ -339,7 +440,7 @@ mod complex_tests {
         assert_eq!(row[0], Complex::new(1.0, 0.0));
         assert_eq!(row[2], Complex::new(3.0, 0.0));
 
-        let col = m.col(1);
+        let col: Vec<Complex<f64>> = m.col_iter(1).cloned().collect();
         assert_eq!(col[0], Complex::new(2.0, 0.0));
         assert_eq!(col[1], Complex::new(5.0, 0.0));
     }
@@ -364,6 +465,22 @@ mod complex_tests {
         let c = a.with_col_vec(&[Complex::new(5.0, 1.0), Complex::new(6.0, 1.0)]);
         assert_eq!(c.cols(), 3);
         assert_eq!(c.get(0, 2), Complex::new(5.0, 1.0));
+    }
+
+    #[test]
+    fn test_complex_approx_eq() {
+        let a = Matrix::new(
+            1,
+            2,
+            vec![Complex::new(1.0, 1.0), Complex::new(2.0, 2.0)],
+        );
+        let b = Matrix::new(
+            1,
+            2,
+            vec![Complex::new(1.0, 1.0), Complex::new(2.0, 2.0 + 1e-12)],
+        );
+        assert!(a.approx_eq(&b, 1e-10f64));
+        assert!(!a.approx_eq(&b, 1e-13f64));
     }
 }
 
@@ -1504,6 +1621,41 @@ mod decomposition_tests {
     }
 
     #[test]
+    fn test_nan_behavior() {
+        let m = Matrix::new(2, 2, vec![f64::NAN, 1.0, 0.0, 1.0]);
+        assert!(!m.is_invertible());
+        assert_eq!(m.determinant(), 0.0);
+    }
+
+    #[test]
+    fn test_try_determinant_invertible() {
+        let square = Matrix::new(2, 2, vec![1.0, 2.0, 3.0, 4.0]);
+        let rect = Matrix::new(2, 3, vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0]);
+
+        assert_eq!(square.try_determinant().unwrap(), -2.0);
+        assert_eq!(
+            rect.try_determinant().unwrap_err(),
+            MatrixError::DimensionMismatch
+        );
+        assert_eq!(square.try_determinant_with_tol(1e-12).unwrap(), -2.0);
+        assert_eq!(
+            rect.try_determinant_with_tol(1e-12).unwrap_err(),
+            MatrixError::DimensionMismatch
+        );
+
+        assert!(square.try_is_invertible().unwrap());
+        assert_eq!(
+            rect.try_is_invertible().unwrap_err(),
+            MatrixError::DimensionMismatch
+        );
+        assert!(square.try_is_invertible_with_tol(1e-12).unwrap());
+        assert_eq!(
+            rect.try_is_invertible_with_tol(1e-12).unwrap_err(),
+            MatrixError::DimensionMismatch
+        );
+    }
+
+    #[test]
     fn test_singular_2x2() {
         let m = Matrix::new(2, 2, vec![1.0, 2.0, 2.0, 4.0]);
         assert!(!m.is_invertible());
@@ -1667,6 +1819,14 @@ mod decomposition_tests {
     }
 
     #[test]
+    fn test_integer_determinant_fraction_free() {
+        // det([[2,1],[1,1]]) = 1; integer PLU with truncating division is incorrect
+        let m = Matrix::new(2, 2, vec![2i32, 1, 1, 1]);
+        assert_eq!(m.determinant(), 1i32);
+        assert!(m.is_invertible());
+    }
+
+    #[test]
     fn test_determinant_upper_triangular() {
         // Upper triangular matrix
         let m = Matrix::new(3, 3, vec![2, 3, 4, 0, 5, 6, 0, 0, 7]);
@@ -1773,6 +1933,24 @@ mod norm_tests {
         let norm = m.norm_fro();
         let expected = 5.0f32; // sqrt(9 + 16) = 5
         assert!((norm - expected).abs() < 1e-6);
+    }
+
+    #[test]
+    fn test_frobenius_norm_large_values() {
+        let m = Matrix::new(1, 2, vec![1e200f64, 1e200f64]);
+        let norm: f64 = m.norm_fro();
+        let expected = (2.0f64).sqrt() * 1e200f64;
+        assert!(norm.is_finite());
+        assert!((norm - expected).abs() / expected < 1e-12);
+    }
+
+    #[test]
+    fn test_frobenius_norm_small_values() {
+        let m = Matrix::new(1, 2, vec![1e-200f64, 1e-200f64]);
+        let norm: f64 = m.norm_fro();
+        let expected = (2.0f64).sqrt() * 1e-200f64;
+        assert!(norm > 0.0f64);
+        assert!((norm - expected).abs() / expected < 1e-12);
     }
 
     #[test]
@@ -1966,6 +2144,15 @@ mod norm_tests {
         let m = Matrix::new(2, 2, vec![1.0f32, 2.0, 3.0, 4.0]);
         let norm = m.norm_inf();
         assert_eq!(norm, 7.0f32); // max(1+2, 3+4) = max(3, 7) = 7
+    }
+
+    #[test]
+    fn test_signed_abs_min_norms() {
+        let m = Matrix::new(1, 1, vec![i32::MIN]);
+        let one = m.norm_one();
+        let inf = m.norm_inf();
+        assert_eq!(one, i32::MAX);
+        assert_eq!(inf, i32::MAX);
     }
 
     #[test]

@@ -27,9 +27,16 @@ A high-performance, generic matrix library for Rust with support for real, integ
   - Horizontal concatenation (`with_cols`)
   - Vertical concatenation (`with_rows`)
   - Row and column appending
+- **Approximate Equality**:
+  - `approx_eq` for float/complex comparisons with tolerance
+- **Column Iteration**:
+  - `col_iter` for zero-allocation column access
+- **Checked APIs**:
+  - Non-panicking `try_*` variants for indexing, concatenation, and core ops
+  - `MatrixError` for dimension/index errors
 - **Memory Efficient**: Optimized implementations with in-place mutations where possible
 - **Type Safe**: Compile-time dimension checking through Rust's type system
-- **Comprehensive Test Suite**: 185+ tests covering all operations
+- **Comprehensive Test Suite**: 200+ tests covering all operations
 - **Numerical Stability**: PLU decomposition with partial pivoting for robust computations
 
 ## Installation
@@ -63,6 +70,13 @@ let zero = Matrix::<f64>::zero(2, 2);
 
 // Access elements
 let element = a.get(0, 1);  // Gets element at row 0, col 1
+
+// Checked access (no panic)
+let safe = a.try_get(0, 1).unwrap();
+
+// Column iteration without allocation
+let col: Vec<f64> = a.col_iter(1).copied().collect();
+// col() allocates and is deprecated in favor of col_iter().
 ```
 
 ### Arithmetic Operations
@@ -129,6 +143,18 @@ let identity = Matrix::<Complex<f64>>::identity(3, 3);
 let scaled = m * Complex::new(2.0, 0.0);
 ```
 
+### Approximate Equality
+
+```rust
+use spectralize::Matrix;
+
+let a = Matrix::new(2, 2, vec![1.0f64, 2.0, 3.0, 4.0]);
+let b = Matrix::new(2, 2, vec![1.0f64, 2.0, 3.0, 4.0 + 1e-12]);
+
+// Tolerance-based comparison (exact PartialEq is still available)
+assert!(a.approx_eq(&b, 1e-10f64));
+```
+
 ### Advanced Operations
 
 ```rust
@@ -157,12 +183,18 @@ let tr = square.trace();  // 1 + 5 + 9 = 15
 let m = Matrix::new(2, 2, vec![1.0, 2.0, 3.0, 4.0]);
 let det = m.determinant();  // -2.0
 
+// Note: integer determinants use Bareiss elimination (exact but can overflow for large values).
+// NaN values are treated as singular (determinant returns 0.0 and is_invertible is false).
+
 // Check if matrix is invertible
 let invertible = m.is_invertible();  // true
 
 let singular = Matrix::new(2, 2, vec![1.0, 2.0, 2.0, 4.0]);
 let det_singular = singular.determinant();  // 0.0
 let invertible_singular = singular.is_invertible();  // false
+
+// Checked variants (no panic on non-square)
+let det_checked = m.try_determinant().unwrap();  // Ok(-2.0)
 ```
 
 ### Matrix Norms
@@ -223,6 +255,9 @@ let with_row = a.with_row_vec(&[9.0, 10.0]);  // Results in 3x2 matrix
 
 // Append a single column
 let with_col = a.with_col_vec(&[9.0, 10.0]);  // Results in 2x3 matrix
+
+// Checked concatenation (no panic)
+let with_cols_checked = a.try_with_cols(&b).unwrap();
 ```
 
 ### Permutation Matrices

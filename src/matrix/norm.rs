@@ -1,5 +1,5 @@
 use super::{Matrix, MatrixElement};
-use std::ops::{Add, Mul};
+use std::ops::{Add, Div, Mul};
 
 /// Trait for types that support absolute value operations.
 /// Required for computing matrix norms that depend on element magnitudes.
@@ -72,7 +72,7 @@ impl Abs for i8 {
     type Output = i8;
 
     fn abs(self) -> Self::Output {
-        i8::abs(self)
+        i8::saturating_abs(self)
     }
 }
 
@@ -80,7 +80,7 @@ impl Abs for i16 {
     type Output = i16;
 
     fn abs(self) -> Self::Output {
-        i16::abs(self)
+        i16::saturating_abs(self)
     }
 }
 
@@ -88,7 +88,7 @@ impl Abs for i32 {
     type Output = i32;
 
     fn abs(self) -> Self::Output {
-        i32::abs(self)
+        i32::saturating_abs(self)
     }
 }
 
@@ -96,7 +96,7 @@ impl Abs for i64 {
     type Output = i64;
 
     fn abs(self) -> Self::Output {
-        i64::abs(self)
+        i64::saturating_abs(self)
     }
 }
 
@@ -104,7 +104,7 @@ impl Abs for i128 {
     type Output = i128;
 
     fn abs(self) -> Self::Output {
-        i128::abs(self)
+        i128::saturating_abs(self)
     }
 }
 
@@ -112,7 +112,7 @@ impl Abs for isize {
     type Output = isize;
 
     fn abs(self) -> Self::Output {
-        isize::abs(self)
+        isize::saturating_abs(self)
     }
 }
 
@@ -198,15 +198,36 @@ where
     pub fn norm_fro(&self) -> T::Output
     where
         T: Clone + Abs,
-        T::Output: MatrixElement + Mul<Output = T::Output> + Add<Output = T::Output> + Sqrt,
+        T::Output: MatrixElement
+            + Mul<Output = T::Output>
+            + Add<Output = T::Output>
+            + Div<Output = T::Output>
+            + PartialOrd
+            + Sqrt,
     {
-        // Single-pass accumulation of sum of squares
-        let sum_of_squares = self.data.iter().fold(T::Output::zero(), |acc, element| {
-            let abs_val = element.clone().abs();
-            acc + (abs_val.clone() * abs_val)
-        });
+        // Scaled sum of squares to avoid overflow/underflow (LAPACK-style)
+        let mut scale = T::Output::zero();
+        let mut ssq = T::Output::one();
 
-        sum_of_squares.sqrt()
+        for element in &self.data {
+            let abs_val = element.clone().abs();
+            if abs_val != T::Output::zero() {
+                if scale < abs_val {
+                    let ratio = scale.clone() / abs_val.clone();
+                    ssq = T::Output::one() + ssq * (ratio.clone() * ratio);
+                    scale = abs_val;
+                } else {
+                    let ratio = abs_val.clone() / scale.clone();
+                    ssq = ssq + ratio.clone() * ratio;
+                }
+            }
+        }
+
+        if scale == T::Output::zero() {
+            T::Output::zero()
+        } else {
+            scale * ssq.sqrt()
+        }
     }
 
     /// Compute the 1-norm (maximum absolute column sum) of the matrix.

@@ -215,6 +215,11 @@ pub trait ToleranceOps {
     fn epsilon() -> Option<Self::Abs>;
 }
 
+/// Trait for types that can report NaN status.
+pub trait NanCheck {
+    fn is_nan(&self) -> bool;
+}
+
 // Implementations for floating-point types (inexact arithmetic)
 
 impl ToleranceOps for f32 {
@@ -272,7 +277,7 @@ impl ToleranceOps for i8 {
     type Abs = i8;
 
     fn abs_val(&self) -> Self::Abs {
-        self.abs()
+        self.saturating_abs()
     }
 
     fn epsilon() -> Option<Self::Abs> {
@@ -284,7 +289,7 @@ impl ToleranceOps for i16 {
     type Abs = i16;
 
     fn abs_val(&self) -> Self::Abs {
-        self.abs()
+        self.saturating_abs()
     }
 
     fn epsilon() -> Option<Self::Abs> {
@@ -296,7 +301,7 @@ impl ToleranceOps for i32 {
     type Abs = i32;
 
     fn abs_val(&self) -> Self::Abs {
-        self.abs()
+        self.saturating_abs()
     }
 
     fn epsilon() -> Option<Self::Abs> {
@@ -308,7 +313,7 @@ impl ToleranceOps for i64 {
     type Abs = i64;
 
     fn abs_val(&self) -> Self::Abs {
-        self.abs()
+        self.saturating_abs()
     }
 
     fn epsilon() -> Option<Self::Abs> {
@@ -320,7 +325,7 @@ impl ToleranceOps for i128 {
     type Abs = i128;
 
     fn abs_val(&self) -> Self::Abs {
-        self.abs()
+        self.saturating_abs()
     }
 
     fn epsilon() -> Option<Self::Abs> {
@@ -332,7 +337,7 @@ impl ToleranceOps for isize {
     type Abs = isize;
 
     fn abs_val(&self) -> Self::Abs {
-        self.abs()
+        self.saturating_abs()
     }
 
     fn epsilon() -> Option<Self::Abs> {
@@ -409,5 +414,89 @@ impl ToleranceOps for usize {
 
     fn epsilon() -> Option<Self::Abs> {
         None // Exact arithmetic
+    }
+}
+
+impl NanCheck for f32 {
+    fn is_nan(&self) -> bool {
+        f32::is_nan(*self)
+    }
+}
+
+impl NanCheck for f64 {
+    fn is_nan(&self) -> bool {
+        f64::is_nan(*self)
+    }
+}
+
+impl NanCheck for i8 {
+    fn is_nan(&self) -> bool {
+        false
+    }
+}
+
+impl NanCheck for i16 {
+    fn is_nan(&self) -> bool {
+        false
+    }
+}
+
+impl NanCheck for i32 {
+    fn is_nan(&self) -> bool {
+        false
+    }
+}
+
+impl NanCheck for i64 {
+    fn is_nan(&self) -> bool {
+        false
+    }
+}
+
+impl NanCheck for i128 {
+    fn is_nan(&self) -> bool {
+        false
+    }
+}
+
+impl NanCheck for isize {
+    fn is_nan(&self) -> bool {
+        false
+    }
+}
+
+impl NanCheck for u8 {
+    fn is_nan(&self) -> bool {
+        false
+    }
+}
+
+impl NanCheck for u16 {
+    fn is_nan(&self) -> bool {
+        false
+    }
+}
+
+impl NanCheck for u32 {
+    fn is_nan(&self) -> bool {
+        false
+    }
+}
+
+impl NanCheck for u64 {
+    fn is_nan(&self) -> bool {
+        false
+    }
+}
+
+impl NanCheck for u128 {
+    fn is_nan(&self) -> bool {
+        false
+    }
+}
+
+impl NanCheck for usize {
+    fn is_nan(&self) -> bool {
+        false
     }
 }
