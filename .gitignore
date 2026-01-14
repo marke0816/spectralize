@@ -3,4 +3,5 @@
 Cargo.lock
 CLAUDE.md
 AGENTS.md
+.codex/
 /examples/scratch.rs
