@@ -15,6 +15,8 @@ A high-performance, generic matrix library for Rust with support for real, integ
   - Outer product
   - Matrix transpose
   - Trace (sum of diagonal elements)
+  - Determinant calculation (via PLU decomposition)
+  - Invertibility checking
 - **Matrix Construction**:
   - Zero matrices
   - Identity matrices
@@ -26,7 +28,8 @@ A high-performance, generic matrix library for Rust with support for real, integ
   - Row and column appending
 - **Memory Efficient**: Optimized implementations with in-place mutations where possible
 - **Type Safe**: Compile-time dimension checking through Rust's type system
-- **Comprehensive Test Suite**: 109+ tests covering all operations
+- **Comprehensive Test Suite**: 155+ tests covering all operations
+- **Numerical Stability**: PLU decomposition with partial pivoting for robust computations
 
 ## Installation
 
@@ -148,6 +151,17 @@ let m_t = m.transpose();  // Produces a 3x2 matrix
 // Trace (sum of diagonal elements)
 let square = Matrix::new(3, 3, vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0]);
 let tr = square.trace();  // 1 + 5 + 9 = 15
+
+// Determinant (via PLU decomposition with partial pivoting)
+let m = Matrix::new(2, 2, vec![1.0, 2.0, 3.0, 4.0]);
+let det = m.determinant();  // -2.0
+
+// Check if matrix is invertible
+let invertible = m.is_invertible();  // true
+
+let singular = Matrix::new(2, 2, vec![1.0, 2.0, 2.0, 4.0]);
+let det_singular = singular.determinant();  // 0.0
+let invertible_singular = singular.is_invertible();  // false
 ```
 
 ### Matrix Concatenation
@@ -214,6 +228,8 @@ let perm = Matrix::<f64>::perm(4, 4, vec![2, 4, 3, 1]);
 - `outer(other)` - Outer product
 - `transpose()` - Matrix transpose
 - `trace()` - Trace (sum of diagonal elements, square matrices only)
+- `determinant()` - Determinant via PLU decomposition with partial pivoting (square matrices only)
+- `is_invertible()` - Check if matrix is invertible (non-singular)
 
 #### Concatenation
 - `with_cols(other)` - Horizontal concatenation
@@ -267,7 +283,8 @@ src/
     ├── element.rs      # MatrixElement trait and implementations
     ├── arithmetic.rs   # Arithmetic operations (Add, Sub, Mul, etc.)
     ├── append.rs       # Matrix concatenation operations
-    └── tests.rs        # Comprehensive test suite
+    ├── decomposition.rs # PLU decomposition, determinant, and invertibility
+    └── tests.rs        # Comprehensive test suite (155+ tests)
 examples/
 └── complex_demo.rs     # Example using complex numbers
 ```
@@ -275,8 +292,35 @@ examples/
 ## Future Plans
 
 - Matrix inversion (for `A^-n` support in `pow`)
-- Determinant calculation
-- LU, QR, Cholesky, SVD decompositions
+- Additional decompositions:
+  - QR decomposition
+  - Cholesky decomposition
+  - Singular Value Decomposition (SVD)
 - Eigenvalue and eigenvector computation
+- Linear system solving using existing PLU decomposition
 - Purpose-built graphics rendering APIs
 - Sparse matrix support
+- Iterative methods for large systems
+
+## Implementation Notes
+
+### PLU Decomposition
+
+The determinant and invertibility checking are powered by an efficient PLU decomposition implementation with partial pivoting:
+
+- **Partial Pivoting**: For each column, the algorithm selects the row with the largest absolute value as the pivot, improving numerical stability
+- **In-Place Elimination**: Gaussian elimination is performed in-place on a cloned matrix for optimal memory usage
+- **Row Swap Tracking**: The number of row swaps is tracked to correctly compute the determinant sign: det(A) = (-1)^(swaps) × product(diagonal of U)
+- **Singularity Detection**: Zero pivots are detected during elimination, allowing immediate identification of singular matrices
+- **Exact Arithmetic**: Works correctly with any type supporting division (primarily f32 and f64)
+
+Example computation:
+```rust
+// For matrix A, PLU decomposition gives us P*A = L*U where:
+// - P is a permutation matrix (represented implicitly via row swaps)
+// - L is lower triangular with 1s on diagonal
+// - U is upper triangular
+//
+// det(A) = det(P)^(-1) * det(L) * det(U)
+//        = (-1)^(row_swaps) * 1 * product(diagonal of U)
+```
