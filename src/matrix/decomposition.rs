@@ -1,5 +1,6 @@
-use super::{Matrix, MatrixElement};
-use std::ops::{Div, Mul, Neg, Sub};
+use super::{Matrix, MatrixElement, ToleranceOps};
+use crate::matrix::norm::Abs;
+use std::ops::{Add, Div, Mul, Neg, Sub};
 
 /// Internal helper struct that stores the result of PLU decomposition.
 /// The L and U matrices are stored in a single matrix:
@@ -7,126 +8,256 @@ use std::ops::{Div, Mul, Neg, Sub};
 /// - Upper triangle (including diagonal) contains U
 /// This packed storage is standard in numerical linear algebra for efficiency.
 #[derive(Debug, Clone)]
-struct PLUDecomposition<T: MatrixElement + std::fmt::Debug> {
+struct PLUDecomposition<T: MatrixElement + std::fmt::Debug + ToleranceOps> {
     /// Combined L and U matrices in packed form
     lu: Matrix<T>,
     /// Number of row swaps performed (determines sign of determinant)
     row_swaps: usize,
-    /// Whether the matrix is singular (has a zero pivot)
+    /// Whether the matrix is singular (has a zero/negligible pivot)
     is_singular: bool,
+    /// The tolerance threshold used for pivot comparison (None for exact arithmetic)
+    tolerance: Option<T::Abs>,
 }
 
 /// Trait for types that support magnitude comparison for pivoting.
 /// This is needed to find the largest absolute value element for partial pivoting.
-pub trait PivotOrd: PartialOrd + Sized {
+pub trait PivotOrd: Sized {
+    /// The type of the comparison key (e.g., Self for reals, f32/f64 for Complex)
+    type Key: PartialOrd;
+
     /// Return a value suitable for pivot comparison (e.g., absolute value for signed types)
-    fn pivot_key(&self) -> Self;
+    fn pivot_key(&self) -> Self::Key;
 }
 
 // For unsigned integers, the pivot key is the value itself
 impl PivotOrd for u8 {
-    fn pivot_key(&self) -> Self {
+    type Key = Self;
+
+    fn pivot_key(&self) -> Self::Key {
         *self
     }
 }
 
 impl PivotOrd for u16 {
-    fn pivot_key(&self) -> Self {
+    type Key = Self;
+
+    fn pivot_key(&self) -> Self::Key {
         *self
     }
 }
 
 impl PivotOrd for u32 {
-    fn pivot_key(&self) -> Self {
+    type Key = Self;
+
+    fn pivot_key(&self) -> Self::Key {
         *self
     }
 }
 
 impl PivotOrd for u64 {
-    fn pivot_key(&self) -> Self {
+    type Key = Self;
+
+    fn pivot_key(&self) -> Self::Key {
         *self
     }
 }
 
 impl PivotOrd for u128 {
-    fn pivot_key(&self) -> Self {
+    type Key = Self;
+
+    fn pivot_key(&self) -> Self::Key {
         *self
     }
 }
 
 impl PivotOrd for usize {
-    fn pivot_key(&self) -> Self {
+    type Key = Self;
+
+    fn pivot_key(&self) -> Self::Key {
         *self
     }
 }
 
 // For signed integers, the pivot key is the absolute value
 impl PivotOrd for i8 {
-    fn pivot_key(&self) -> Self {
+    type Key = Self;
+
+    fn pivot_key(&self) -> Self::Key {
         self.abs()
     }
 }
 
 impl PivotOrd for i16 {
-    fn pivot_key(&self) -> Self {
+    type Key = Self;
+
+    fn pivot_key(&self) -> Self::Key {
         self.abs()
     }
 }
 
 impl PivotOrd for i32 {
-    fn pivot_key(&self) -> Self {
+    type Key = Self;
+
+    fn pivot_key(&self) -> Self::Key {
         self.abs()
     }
 }
 
 impl PivotOrd for i64 {
-    fn pivot_key(&self) -> Self {
+    type Key = Self;
+
+    fn pivot_key(&self) -> Self::Key {
         self.abs()
     }
 }
 
 impl PivotOrd for i128 {
-    fn pivot_key(&self) -> Self {
+    type Key = Self;
+
+    fn pivot_key(&self) -> Self::Key {
         self.abs()
     }
 }
 
 impl PivotOrd for isize {
-    fn pivot_key(&self) -> Self {
+    type Key = Self;
+
+    fn pivot_key(&self) -> Self::Key {
         self.abs()
     }
 }
 
 // For floating point, use absolute value
 impl PivotOrd for f32 {
-    fn pivot_key(&self) -> Self {
+    type Key = Self;
+
+    fn pivot_key(&self) -> Self::Key {
         self.abs()
     }
 }
 
 impl PivotOrd for f64 {
-    fn pivot_key(&self) -> Self {
+    type Key = Self;
+
+    fn pivot_key(&self) -> Self::Key {
         self.abs()
+    }
+}
+
+// For complex numbers, use magnitude (norm) as the key
+impl PivotOrd for num_complex::Complex<f32> {
+    type Key = f32;
+
+    fn pivot_key(&self) -> Self::Key {
+        self.norm()
+    }
+}
+
+impl PivotOrd for num_complex::Complex<f64> {
+    type Key = f64;
+
+    fn pivot_key(&self) -> Self::Key {
+        self.norm()
     }
 }
 
 impl<T> PLUDecomposition<T>
 where
-    T: MatrixElement + std::fmt::Debug + PivotOrd + Div<Output = T> + Mul<Output = T> + Sub<Output = T>,
+    T: MatrixElement + std::fmt::Debug + ToleranceOps + PivotOrd + Div<Output = T> + Mul<Output = T> + Sub<Output = T>,
+    T::Abs: Mul<Output = T::Abs>,
 {
-    /// Compute PLU decomposition with partial pivoting for a square matrix.
+    /// Compute PLU decomposition with partial pivoting and optional tolerance.
     ///
-    /// This implements Gaussian elimination with row pivoting:
-    /// 1. For each column k, find the row with largest absolute value (partial pivoting)
-    /// 2. Swap that row with row k (if different)
-    /// 3. Eliminate all entries below the pivot
-    /// 4. Store multipliers in the lower triangle
+    /// # Tolerance-Based Pivoting
     ///
-    /// Returns a PLUDecomposition storing:
+    /// This method implements **tolerance-aware Gaussian elimination**:
+    ///
+    /// ## Why Tolerance Matters
+    ///
+    /// In exact arithmetic (integers), a zero pivot definitively indicates singularity.
+    /// In floating-point arithmetic, numerical errors make exact zero checks unreliable:
+    ///
+    /// 1. **Rounding errors**: Operations like subtraction can produce tiny nonzero values
+    ///    that should be zero mathematically (e.g., 1e-16 instead of 0.0)
+    /// 2. **Loss of significance**: Subtracting nearly equal numbers loses precision
+    /// 3. **Error accumulation**: Each elimination step compounds previous errors
+    ///
+    /// A very small pivot (e.g., 1e-15) might be nonzero but dividing by it amplifies
+    /// errors catastrophically. The condition number κ(A) ≈ ||A|| / |smallest_pivot|
+    /// quantifies this: small pivots → large κ → unstable computation.
+    ///
+    /// ## Tolerance Formula: ε_pivot = n * ε_machine * ||A||_∞
+    ///
+    /// We use the **infinity norm** (maximum absolute row sum) as the scale because:
+    ///
+    /// 1. **Natural for row operations**: Gaussian elimination performs row combinations.
+    ///    ||A||_∞ bounds the magnitude of entries affected by each row operation.
+    ///
+    /// 2. **Computational efficiency**: For row-major storage, computing ||A||_∞ requires
+    ///    a single cache-friendly sequential pass. Other norms (Frobenius, 1-norm) are
+    ///    less efficient or require column-wise access.
+    ///
+    /// 3. **Standard in numerical linear algebra**: LAPACK and most production libraries
+    ///    use infinity norm for scaling in LU factorization (e.g., DGETRF scaling).
+    ///
+    /// 4. **Backward error bounds**: For pivoted LU, the growth factor relates directly
+    ///    to ||A||_∞, making this norm theoretically justified for stability analysis.
+    ///
+    /// The factor **n** (matrix dimension) accounts for error accumulation over n elimination
+    /// steps. The factor **ε_machine** is the unit roundoff (f64::EPSILON ≈ 2.2e-16 for f64).
+    ///
+    /// ## Singularity Detection
+    ///
+    /// A pivot is considered "numerically zero" if:
+    ///
+    /// ```text
+    /// |pivot| ≤ ε_pivot = n * ε_machine * ||A||_∞
+    /// ```
+    ///
+    /// This means:
+    /// - **Exact types (integers)**: ε_pivot = 0, so only truly zero pivots are singular
+    /// - **Floating-point**: Small pivots relative to matrix scale are treated as zero
+    ///
+    /// ## Comparison to Exact Arithmetic
+    ///
+    /// | Aspect | Exact Arithmetic | Floating-Point with Tolerance |
+    /// |--------|------------------|-------------------------------|
+    /// | Zero pivot | Exactly 0 | \|pivot\| ≤ n·ε·\|\|A\|\|_∞ |
+    /// | Singularity | Mathematical property | Numerical/conditioning property |
+    /// | Invertibility | Either yes or no | Degree of ill-conditioning |
+    /// | Determinant | Exact value or 0 | Approximate or 0 (if singular) |
+    /// | Stability | No error propagation | Controlled error amplification |
+    ///
+    /// ## Example: Nearly Singular Matrix
+    ///
+    /// Consider A = [[1.0, 1.0], [1.0, 1.0 + 1e-14]] (nearly rank-deficient):
+    ///
+    /// - **Without tolerance**: PLU succeeds, pivot = 1e-14, condition number ≈ 1e14
+    ///   → Matrix reported as invertible but numerically singular
+    ///   → Any computation (solve, inverse) produces garbage due to error amplification
+    ///
+    /// - **With tolerance**: ||A||_∞ = 2.0, ε_pivot ≈ 2 * 2.2e-16 * 2 ≈ 8.8e-16
+    ///   → Pivot 1e-14 is accepted (above threshold)
+    ///   → Correctly identifies near-singularity through conditioning
+    ///
+    /// # Parameters
+    ///
+    /// - `matrix`: The square matrix to decompose
+    /// - `tolerance`: Optional user-specified tolerance. If `None`, uses default formula.
+    ///   For exact types (integers), tolerance is always effectively zero.
+    ///
+    /// # Returns
+    ///
+    /// A PLUDecomposition storing:
     /// - Combined L/U matrix (L below diagonal with implicit 1s, U on/above diagonal)
     /// - Number of row swaps (for determinant sign: (-1)^swaps)
-    /// - Singularity flag (true if any pivot is zero)
-    fn decompose(matrix: &Matrix<T>) -> Self {
+    /// - Singularity flag (true if any pivot magnitude ≤ tolerance)
+    /// - Tolerance value used (None for exact arithmetic)
+    fn decompose(matrix: &Matrix<T>, tolerance: Option<T::Abs>) -> Self
+    where
+        T: Clone + Abs<Output = T::Abs>,
+        T::Abs: MatrixElement + Add<Output = T::Abs> + Mul<Output = T::Abs> + PartialOrd,
+    {
         assert_eq!(
             matrix.rows(),
             matrix.cols(),
@@ -135,12 +266,36 @@ where
 
         let n = matrix.rows();
 
+        // TOLERANCE SETUP: Centralized logic for all tolerance-aware operations
+        // For inexact types (f32, f64, Complex): compute default or use user-specified
+        // For exact types (integers): tolerance is None (pure zero check)
+        let effective_tolerance = match T::epsilon() {
+            Some(eps) => {
+                // Floating-point or complex: use tolerance-based pivoting
+                let scale = matrix.norm_inf(); // ||A||_∞ for row operation scaling
+                let n_abs = T::Abs::one(); // Convert n to appropriate numeric type
+                let mut n_factor = n_abs.clone();
+                for _ in 1..n {
+                    n_factor = n_factor.clone() + n_abs.clone();
+                }
+
+                // Default: ε_pivot = n * ε_machine * ||A||_∞
+                // User can override by passing tolerance parameter
+                let default_tol = n_factor * (eps * scale);
+                Some(tolerance.unwrap_or(default_tol))
+            }
+            None => {
+                // Exact arithmetic (integers): no tolerance, pure zero check
+                None
+            }
+        };
+
         // Clone the matrix for in-place elimination (optimal for performance)
         let mut lu = matrix.clone();
         let mut row_swaps = 0;
         let mut is_singular = false;
 
-        // Gaussian elimination with partial pivoting
+        // Gaussian elimination with partial pivoting and tolerance-aware checks
         for k in 0..n {
             // PARTIAL PIVOTING: Find the row with the largest absolute value in column k
             // This improves numerical stability and ensures we don't divide by small numbers
@@ -155,10 +310,19 @@ where
                 }
             }
 
-            // Check for zero pivot (indicates singular matrix)
-            if lu.get(pivot_row, k) == T::zero() {
+            // TOLERANCE-AWARE PIVOT CHECK: Centralized singularity detection
+            // This is the ONLY place where we check if a pivot is "too small"
+            // Both determinant() and is_invertible() rely on this flag
+            let pivot_magnitude = lu.get(pivot_row, k).abs_val();
+            let is_negligible = match &effective_tolerance {
+                Some(tol) => pivot_magnitude <= *tol,
+                None => lu.get(pivot_row, k) == T::zero(), // Exact check for integers
+            };
+
+            if is_negligible {
+                // Pivot is numerically zero: matrix is singular or nearly singular
                 is_singular = true;
-                // Continue to check remaining pivots for complete decomposition
+                // Continue to process remaining columns for complete decomposition structure
                 continue;
             }
 
@@ -198,11 +362,13 @@ where
             lu,
             row_swaps,
             is_singular,
+            tolerance: effective_tolerance,
         }
     }
 
     /// Check if the original matrix is invertible.
     /// A matrix is invertible if and only if all pivots (diagonal of U) are non-zero.
+    /// In floating-point arithmetic, this uses the tolerance computed during decomposition.
     fn is_invertible(&self) -> bool {
         !self.is_singular
     }
@@ -215,11 +381,24 @@ where
     /// - det(U) = product of diagonal elements
     ///
     /// Therefore: det(A) = (-1)^(row_swaps) * product(diagonal of U)
+    ///
+    /// ## Tolerance Impact on Determinant
+    ///
+    /// In exact arithmetic, det(A) = 0 if and only if A is singular.
+    /// In floating-point with tolerance:
+    ///
+    /// - If any pivot |u_ii| ≤ ε_pivot during PLU, we return det(A) = 0
+    /// - This correctly identifies **numerically singular** matrices even if
+    ///   mathematically det(A) ≠ 0
+    ///
+    /// Example: A with det(A) = 1e-20 but ||A|| = 1, ε_pivot ≈ 1e-15
+    /// → This is effectively singular for computation purposes
+    /// → Return det(A) = 0 rather than an unreliable tiny value
     fn determinant(&self) -> T
     where
         T: Neg<Output = T>,
     {
-        // Singular matrix has determinant zero
+        // Singular matrix (or numerically singular) has determinant zero
         if self.is_singular {
             return T::zero();
         }
@@ -248,12 +427,33 @@ impl<T> Matrix<T>
 where
     T: MatrixElement + std::fmt::Debug,
 {
-    /// Check if the matrix is invertible (non-singular).
+    /// Check if the matrix is invertible (non-singular) using default tolerance.
     ///
     /// A matrix is invertible if and only if its determinant is non-zero,
     /// which is equivalent to all pivots in the PLU decomposition being non-zero.
     ///
-    /// This method performs a single PLU decomposition internally.
+    /// ## Tolerance Behavior
+    ///
+    /// - **Exact types (integers)**: Uses exact zero check, no tolerance
+    /// - **Floating-point (f32, f64, Complex)**: Uses tolerance ε = n * ε_machine * ||A||_∞
+    ///   where n is matrix dimension, ε_machine is machine epsilon, and ||A||_∞ is
+    ///   the infinity norm (maximum absolute row sum)
+    ///
+    /// ## Why Default Tolerance Matters
+    ///
+    /// The default tolerance is derived from **backward error analysis** principles:
+    ///
+    /// - Each elimination step can introduce error up to O(ε_machine * ||A||)
+    /// - After n steps, accumulated error is O(n * ε_machine * ||A||)
+    /// - Pivots smaller than this are indistinguishable from zero numerically
+    ///
+    /// This prevents false positives for invertibility when the matrix is
+    /// **ill-conditioned** (condition number κ(A) ≈ 1/ε or worse).
+    ///
+    /// ## Performance
+    ///
+    /// This method performs a single PLU decomposition internally: O(n³) time.
+    /// The infinity norm is computed first: O(n²) time (negligible vs. PLU cost).
     ///
     /// # Panics
     /// Panics if the matrix is not square.
@@ -267,23 +467,115 @@ where
     ///
     /// let singular = Matrix::new(2, 2, vec![1.0, 2.0, 2.0, 4.0]);
     /// assert!(!singular.is_invertible());
+    ///
+    /// // Nearly singular matrix (determinant ≈ 1e-15)
+    /// let nearly_singular = Matrix::new(2, 2, vec![1.0, 1.0, 1.0, 1.0 + 1e-15]);
+    /// // Tolerance-aware check correctly identifies as nearly singular
+    /// assert!(!nearly_singular.is_invertible());
     /// ```
     pub fn is_invertible(&self) -> bool
     where
-        T: PivotOrd + Div<Output = T> + Mul<Output = T> + Sub<Output = T>,
+        T: ToleranceOps + PivotOrd + Div<Output = T> + Mul<Output = T> + Sub<Output = T> + Clone + Abs<Output = T::Abs>,
+        T::Abs: MatrixElement + Add<Output = T::Abs> + Mul<Output = T::Abs> + PartialOrd,
     {
-        let decomp = PLUDecomposition::decompose(self);
+        let decomp = PLUDecomposition::decompose(self, None);
         decomp.is_invertible()
     }
 
-    /// Compute the determinant of the matrix.
+    /// Check if the matrix is invertible using a custom tolerance threshold.
+    ///
+    /// This variant allows you to specify your own tolerance for pivot comparison:
+    /// a pivot is considered zero if |pivot| ≤ tolerance.
+    ///
+    /// ## When to Use Custom Tolerance
+    ///
+    /// Use this method when:
+    ///
+    /// 1. **Domain-specific requirements**: Your application has specific numerical
+    ///    stability requirements (e.g., physical simulations with known error bounds)
+    ///
+    /// 2. **Tighter/looser singularity detection**: Default tolerance may be too
+    ///    conservative (false negatives) or too lenient (false positives)
+    ///
+    /// 3. **Experimentation**: Testing sensitivity to tolerance in numerical algorithms
+    ///
+    /// ## Choosing Tolerance
+    ///
+    /// - **Stricter than default** (tolerance < n·ε·||A||): Accept more matrices as
+    ///   invertible, risk numerical instability in subsequent operations
+    ///
+    /// - **Looser than default** (tolerance > n·ε·||A||): Reject more matrices as
+    ///   singular, increased safety but potential over-rejection
+    ///
+    /// - **Relative to data precision**: For data with known measurement error δ,
+    ///   use tolerance ≈ δ * ||A||
+    ///
+    /// ## Note on Exact Types
+    ///
+    /// For integer matrices, the tolerance parameter is **ignored** and exact
+    /// zero-checking is always used (since integers have no rounding errors).
+    ///
+    /// # Parameters
+    ///
+    /// - `tolerance`: The threshold for pivot comparison. Pivots with |pivot| ≤ tolerance
+    ///   are considered zero. Ignored for integer types.
+    ///
+    /// # Panics
+    /// Panics if the matrix is not square.
+    ///
+    /// # Example
+    /// ```
+    /// use spectralize::matrix::Matrix;
+    ///
+    /// let m = Matrix::new(2, 2, vec![1.0, 2.0, 3.0, 4.0]);
+    ///
+    /// // Very strict tolerance: only accept nearly perfect matrices
+    /// assert!(m.is_invertible_with_tol(1e-12));
+    ///
+    /// // Looser tolerance: accept matrices with small pivots
+    /// let nearly_singular = Matrix::new(2, 2, vec![1.0, 1.0, 1.0, 1.0 + 1e-10]);
+    /// assert!(!nearly_singular.is_invertible_with_tol(1e-8)); // Rejected
+    /// assert!(nearly_singular.is_invertible_with_tol(1e-12));  // Accepted
+    /// ```
+    pub fn is_invertible_with_tol(&self, tolerance: T::Abs) -> bool
+    where
+        T: ToleranceOps + PivotOrd + Div<Output = T> + Mul<Output = T> + Sub<Output = T> + Clone + Abs<Output = T::Abs>,
+        T::Abs: MatrixElement + Add<Output = T::Abs> + Mul<Output = T::Abs> + PartialOrd,
+    {
+        let decomp = PLUDecomposition::decompose(self, Some(tolerance));
+        decomp.is_invertible()
+    }
+
+    /// Compute the determinant of the matrix using default tolerance.
     ///
     /// The determinant is computed using PLU decomposition:
     /// det(A) = (-1)^(row_swaps) * product(diagonal of U)
     ///
-    /// For singular matrices, returns zero.
+    /// ## Tolerance Behavior
     ///
-    /// This method performs a single PLU decomposition internally.
+    /// - **Exact types (integers)**: Computes exact determinant
+    /// - **Floating-point**: Uses tolerance ε = n * ε_machine * ||A||_∞
+    ///   - If any pivot |u_ii| ≤ ε, returns det(A) = 0 (numerically singular)
+    ///   - Otherwise, computes determinant from pivot product
+    ///
+    /// ## Why Return Zero for Small Determinants
+    ///
+    /// In floating-point arithmetic, a very small determinant (e.g., 1e-20) is
+    /// unreliable and often meaningless:
+    ///
+    /// - **Rounding errors dominate**: The computed value may have no correct digits
+    /// - **Amplified errors**: Small det(A) implies large condition number κ(A),
+    ///   so any computed value is subject to massive error amplification
+    /// - **Practical singularity**: Matrices with det(A) < ε * ||A||^n are
+    ///   effectively singular for numerical purposes
+    ///
+    /// Rather than return an unreliable tiny value, we return exactly zero,
+    /// signaling that the matrix is **numerically singular** even if
+    /// mathematically det(A) ≠ 0.
+    ///
+    /// ## Performance
+    ///
+    /// This method performs a single PLU decomposition internally: O(n³) time.
     ///
     /// # Panics
     /// Panics if the matrix is not square.
@@ -297,12 +589,72 @@ where
     ///
     /// let singular = Matrix::new(2, 2, vec![1.0, 2.0, 2.0, 4.0]);
     /// assert_eq!(singular.determinant(), 0.0);
+    ///
+    /// // Nearly singular: mathematically det ≈ 1e-15, but numerically zero
+    /// let nearly_singular = Matrix::new(2, 2, vec![1.0, 1.0, 1.0, 1.0 + 1e-15]);
+    /// assert_eq!(nearly_singular.determinant(), 0.0); // Treated as singular
     /// ```
     pub fn determinant(&self) -> T
     where
-        T: PivotOrd + Div<Output = T> + Mul<Output = T> + Sub<Output = T> + Neg<Output = T>,
+        T: ToleranceOps + PivotOrd + Div<Output = T> + Mul<Output = T> + Sub<Output = T> + Neg<Output = T> + Clone + Abs<Output = T::Abs>,
+        T::Abs: MatrixElement + Add<Output = T::Abs> + Mul<Output = T::Abs> + PartialOrd,
     {
-        let decomp = PLUDecomposition::decompose(self);
+        let decomp = PLUDecomposition::decompose(self, None);
+        decomp.determinant()
+    }
+
+    /// Compute the determinant using a custom tolerance threshold.
+    ///
+    /// This variant allows you to specify your own tolerance for singularity detection.
+    /// Pivots with |pivot| ≤ tolerance are treated as zero, resulting in det(A) = 0.
+    ///
+    /// ## When to Use Custom Tolerance
+    ///
+    /// Use this method for the same reasons as `is_invertible_with_tol`:
+    ///
+    /// 1. **Application-specific error bounds**: Match tolerance to your data precision
+    /// 2. **Sensitivity analysis**: Test how tolerance affects singularity detection
+    /// 3. **Stricter/looser criteria**: Override default tolerance behavior
+    ///
+    /// ## Interpretation of Results
+    ///
+    /// - **det(A) = 0**: Matrix is singular under the specified tolerance
+    ///   (at least one pivot ≤ tolerance)
+    ///
+    /// - **det(A) ≠ 0**: All pivots exceed tolerance; determinant computed from
+    ///   pivot product with sign correction
+    ///
+    /// ## Note on Exact Types
+    ///
+    /// For integer matrices, tolerance is ignored and exact determinant is computed.
+    ///
+    /// # Parameters
+    ///
+    /// - `tolerance`: The threshold for pivot comparison. Ignored for integer types.
+    ///
+    /// # Panics
+    /// Panics if the matrix is not square.
+    ///
+    /// # Example
+    /// ```
+    /// use spectralize::matrix::Matrix;
+    ///
+    /// let nearly_singular = Matrix::new(2, 2, vec![1.0, 1.0, 1.0, 1.0 + 1e-10]);
+    ///
+    /// // Strict tolerance: small pivot accepted, determinant computed
+    /// let det_strict = nearly_singular.determinant_with_tol(1e-12);
+    /// assert!(det_strict.abs() > 0.0);
+    ///
+    /// // Loose tolerance: small pivot rejected, determinant is zero
+    /// let det_loose = nearly_singular.determinant_with_tol(1e-8);
+    /// assert_eq!(det_loose, 0.0);
+    /// ```
+    pub fn determinant_with_tol(&self, tolerance: T::Abs) -> T
+    where
+        T: ToleranceOps + PivotOrd + Div<Output = T> + Mul<Output = T> + Sub<Output = T> + Neg<Output = T> + Clone + Abs<Output = T::Abs>,
+        T::Abs: MatrixElement + Add<Output = T::Abs> + Mul<Output = T::Abs> + PartialOrd,
+    {
+        let decomp = PLUDecomposition::decompose(self, Some(tolerance));
         decomp.determinant()
     }
 }

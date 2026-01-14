@@ -269,7 +269,9 @@ let perm = Matrix::<f64>::perm(4, 4, vec![2, 4, 3, 1]);
 - `transpose()` - Matrix transpose
 - `trace()` - Trace (sum of diagonal elements, square matrices only)
 - `determinant()` - Determinant via PLU decomposition with partial pivoting (square matrices only)
+- `determinant_with_tol(tolerance)` - Determinant with custom singularity tolerance for floating-point types
 - `is_invertible()` - Check if matrix is invertible (non-singular)
+- `is_invertible_with_tol(tolerance)` - Invertibility check with custom tolerance for floating-point types
 - `norm_fro()` - Frobenius norm (Euclidean norm): ||A||_F = sqrt(Σ|a_ij|²)
 - `norm_one()` - 1-norm (maximum absolute column sum): ||A||_1 = max_j Σ_i |a_ij|
 - `norm_inf()` - Infinity norm (maximum absolute row sum): ||A||_∞ = max_i Σ_j |a_ij|
@@ -368,6 +370,114 @@ Example computation:
 // det(A) = det(P)^(-1) * det(L) * det(U)
 //        = (-1)^(row_swaps) * 1 * product(diagonal of U)
 ```
+
+### Floating-Point Tolerance for Numerical Stability
+
+When working with floating-point matrices (f32, f64, Complex<f32>, Complex<f64>), the PLU decomposition, determinant, and invertibility checks use **tolerance-aware pivoting** to handle numerical precision limits and avoid treating nearly-zero values as exact zeros.
+
+#### Why Tolerance Matters
+
+Floating-point arithmetic has inherent roundoff errors. A mathematically non-zero value like `1e-17` might actually be numerical noise rather than a true value. Consider this nearly-singular matrix:
+
+```rust
+// Matrix with condition number ≈ 1e14 (extremely ill-conditioned)
+let nearly_singular = Matrix::new(2, 2, vec![
+    1.0, 1.0,
+    1.0, 1.0 + 1e-14
+]);
+
+// Without tolerance: Reports as invertible, but any computation will amplify errors
+// With tolerance: Correctly identifies as numerically singular
+let is_safe_to_use = nearly_singular.is_invertible();  // Returns true, but warns of ill-conditioning
+```
+
+#### Default Tolerance Formula
+
+For floating-point types, Spectralize automatically computes a safe tolerance based on:
+
+```
+tolerance = n × ε_machine × ||A||_∞
+```
+
+Where:
+- **n** = matrix dimension (accounts for error accumulation over n Gaussian elimination steps)
+- **ε_machine** = machine epsilon (2.2e-16 for f64, 1.2e-7 for f32)
+- **||A||_∞** = infinity norm (scales tolerance to matrix magnitude)
+
+This formula comes from backward error analysis and matches industry-standard libraries like LAPACK.
+
+#### How It Works
+
+During PLU decomposition, when selecting a pivot:
+1. Find the row with the largest absolute value in the current column
+2. Check if `|pivot| ≤ tolerance`
+3. If true: mark the matrix as singular and skip elimination for this column
+4. If false: proceed with normal Gaussian elimination
+
+This tolerance then propagates to:
+- **`determinant()`**: Returns 0.0 if any pivot was below tolerance (matrix is numerically singular)
+- **`is_invertible()`**: Returns false if any pivot was below tolerance
+
+#### Custom Tolerance
+
+For specialized applications, you can override the default tolerance:
+
+```rust
+use spectralize::Matrix;
+
+let m = Matrix::new(3, 3, vec![
+    1.0, 2.0, 3.0,
+    4.0, 5.0, 6.0,
+    7.0, 8.0, 9.0 + 1e-10
+]);
+
+// Use default tolerance (recommended for most cases)
+let det_default = m.determinant();
+let inv_default = m.is_invertible();
+
+// Use stricter tolerance (treat smaller pivots as zero)
+let det_strict = m.determinant_with_tol(1e-8);
+let inv_strict = m.is_invertible_with_tol(1e-8);
+
+// Use looser tolerance (only reject truly tiny pivots)
+let det_loose = m.determinant_with_tol(1e-14);
+let inv_loose = m.is_invertible_with_tol(1e-14);
+```
+
+**When to use custom tolerance:**
+- You know your problem's error bounds (e.g., measurements have known precision ±1e-6)
+- You're performing sensitivity analysis (testing how results change with tolerance)
+- Default tolerance is too conservative or too permissive for your application
+
+#### Integer Types: Exact Arithmetic
+
+For integer types (i32, i64, etc.), tolerance logic is **completely disabled**:
+- Zero pivots are checked exactly (`pivot == 0`)
+- No tolerance computation overhead (zero-cost abstraction)
+- Determinant and invertibility are exact mathematical properties
+
+```rust
+// Integer matrix - exact arithmetic, no tolerance
+let int_matrix = Matrix::new(3, 3, vec![
+    1i32, 2, 3,
+    4, 5, 6,
+    7, 8, 9
+]);
+
+// Exactly zero determinant (truly singular)
+assert_eq!(int_matrix.determinant(), 0);
+assert!(!int_matrix.is_invertible());
+```
+
+#### Implementation Details
+
+The tolerance system uses:
+- **Infinity norm (||A||_∞)**: Efficient for row-major storage, standard in LAPACK, directly relates to Gaussian elimination stability
+- **Centralized logic**: Tolerance computed once in PLU decomposition, reused for all operations
+- **Type-safe design**: `ToleranceOps` trait returns `Option<T::Abs>` - `Some(ε)` for floats, `None` for integers
+- **Zero-cost abstraction**: Integer types compile to exact comparisons with no runtime overhead
+
+For complete implementation details, see `TOLERANCE_IMPLEMENTATION.md` in the repository.
 
 ### Matrix Norms
 

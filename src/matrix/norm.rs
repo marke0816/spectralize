@@ -67,6 +67,105 @@ impl Abs for num_complex::Complex<f64> {
     }
 }
 
+// Implementations for signed integer types
+impl Abs for i8 {
+    type Output = i8;
+
+    fn abs(self) -> Self::Output {
+        i8::abs(self)
+    }
+}
+
+impl Abs for i16 {
+    type Output = i16;
+
+    fn abs(self) -> Self::Output {
+        i16::abs(self)
+    }
+}
+
+impl Abs for i32 {
+    type Output = i32;
+
+    fn abs(self) -> Self::Output {
+        i32::abs(self)
+    }
+}
+
+impl Abs for i64 {
+    type Output = i64;
+
+    fn abs(self) -> Self::Output {
+        i64::abs(self)
+    }
+}
+
+impl Abs for i128 {
+    type Output = i128;
+
+    fn abs(self) -> Self::Output {
+        i128::abs(self)
+    }
+}
+
+impl Abs for isize {
+    type Output = isize;
+
+    fn abs(self) -> Self::Output {
+        isize::abs(self)
+    }
+}
+
+// Implementations for unsigned integer types (already absolute)
+impl Abs for u8 {
+    type Output = u8;
+
+    fn abs(self) -> Self::Output {
+        self
+    }
+}
+
+impl Abs for u16 {
+    type Output = u16;
+
+    fn abs(self) -> Self::Output {
+        self
+    }
+}
+
+impl Abs for u32 {
+    type Output = u32;
+
+    fn abs(self) -> Self::Output {
+        self
+    }
+}
+
+impl Abs for u64 {
+    type Output = u64;
+
+    fn abs(self) -> Self::Output {
+        self
+    }
+}
+
+impl Abs for u128 {
+    type Output = u128;
+
+    fn abs(self) -> Self::Output {
+        self
+    }
+}
+
+impl Abs for usize {
+    type Output = usize;
+
+    fn abs(self) -> Self::Output {
+        self
+    }
+}
+
+
 impl<T> Matrix<T>
 where
     T: MatrixElement + std::fmt::Debug,

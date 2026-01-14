@@ -4,7 +4,7 @@ pub mod decomposition;
 pub mod element;
 pub mod norm;
 
-pub use element::MatrixElement;
+pub use element::{MatrixElement, ToleranceOps};
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Matrix<T: MatrixElement + std::fmt::Debug> {
