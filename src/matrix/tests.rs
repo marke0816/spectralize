@@ -2487,4 +2487,250 @@ mod norm_tests {
 
         // The point: tolerance adapts to matrix scale automatically
     }
+
+    // ============================================================================
+    // Cross Product Tests
+    // ============================================================================
+
+    /// Test cross product with standard basis vectors (column vectors)
+    #[test]
+    fn test_cross_product_basis_vectors_col() {
+        // i = (1, 0, 0), j = (0, 1, 0), k = (0, 0, 1)
+        let i = Matrix::new(3, 1, vec![1.0, 0.0, 0.0]);
+        let j = Matrix::new(3, 1, vec![0.0, 1.0, 0.0]);
+        let k = Matrix::new(3, 1, vec![0.0, 0.0, 1.0]);
+
+        // i × j = k
+        let result = i.cross(&j).unwrap();
+        assert_eq!(result, k);
+
+        // j × k = i
+        let result = j.cross(&k).unwrap();
+        assert_eq!(result, i);
+
+        // k × i = j
+        let result = k.cross(&i).unwrap();
+        assert_eq!(result, j);
+    }
+
+    /// Test cross product anti-commutativity: a × b = -(b × a)
+    #[test]
+    fn test_cross_product_anti_commutativity() {
+        let i = Matrix::new(3, 1, vec![1.0, 0.0, 0.0]);
+        let j = Matrix::new(3, 1, vec![0.0, 1.0, 0.0]);
+        let neg_k = Matrix::new(3, 1, vec![0.0, 0.0, -1.0]);
+
+        // j × i = -k
+        let result = j.cross(&i).unwrap();
+        assert_eq!(result, neg_k);
+
+        // Verify general anti-commutativity
+        let a = Matrix::new(3, 1, vec![2.0, 3.0, 4.0]);
+        let b = Matrix::new(3, 1, vec![5.0, 6.0, 7.0]);
+
+        let a_cross_b = a.cross(&b).unwrap();
+        let b_cross_a = b.cross(&a).unwrap();
+
+        // a × b = -(b × a)
+        let neg_b_cross_a = Matrix::new(
+            3,
+            1,
+            vec![
+                -b_cross_a.get(0, 0),
+                -b_cross_a.get(1, 0),
+                -b_cross_a.get(2, 0),
+            ],
+        );
+        assert_eq!(a_cross_b, neg_b_cross_a);
+    }
+
+    /// Test cross product with row vectors
+    #[test]
+    fn test_cross_product_row_vectors() {
+        let i = Matrix::new(1, 3, vec![1.0, 0.0, 0.0]);
+        let j = Matrix::new(1, 3, vec![0.0, 1.0, 0.0]);
+        let k = Matrix::new(1, 3, vec![0.0, 0.0, 1.0]);
+
+        // i × j = k
+        let result = i.cross(&j).unwrap();
+        assert_eq!(result, k);
+
+        // j × k = i
+        let result = j.cross(&k).unwrap();
+        assert_eq!(result, i);
+
+        // k × i = j
+        let result = k.cross(&i).unwrap();
+        assert_eq!(result, j);
+    }
+
+    /// Test cross product produces orthogonal vector
+    #[test]
+    fn test_cross_product_orthogonality() {
+        let a = Matrix::new(3, 1, vec![1.0, 2.0, 3.0]);
+        let b = Matrix::new(3, 1, vec![4.0, 5.0, 6.0]);
+
+        let c = a.cross(&b).unwrap();
+
+        // c should be orthogonal to both a and b
+        // i.e., a · c = 0 and b · c = 0
+        let a_dot_c = a.dot(&c);
+        let b_dot_c = b.dot(&c);
+
+        assert!(a_dot_c.abs() < 1e-10, "a · (a × b) should be 0");
+        assert!(b_dot_c.abs() < 1e-10, "b · (a × b) should be 0");
+    }
+
+    /// Test cross product of parallel vectors gives zero vector
+    #[test]
+    fn test_cross_product_parallel_vectors() {
+        let a = Matrix::new(3, 1, vec![1.0, 2.0, 3.0]);
+        let b = Matrix::new(3, 1, vec![2.0, 4.0, 6.0]); // b = 2*a
+
+        let result = a.cross(&b).unwrap();
+        let zero = Matrix::new(3, 1, vec![0.0, 0.0, 0.0]);
+
+        assert_eq!(result, zero);
+    }
+
+    /// Test cross product of a vector with itself gives zero vector
+    #[test]
+    fn test_cross_product_self() {
+        let a = Matrix::new(3, 1, vec![5.0, -3.0, 7.0]);
+        let result = a.cross(&a).unwrap();
+        let zero = Matrix::new(3, 1, vec![0.0, 0.0, 0.0]);
+
+        assert_eq!(result, zero);
+    }
+
+    /// Test cross product with integer types
+    #[test]
+    fn test_cross_product_integers() {
+        let a = Matrix::new(3, 1, vec![1i32, 2, 3]);
+        let b = Matrix::new(3, 1, vec![4i32, 5, 6]);
+
+        let result = a.cross(&b).unwrap();
+
+        // (1, 2, 3) × (4, 5, 6) = (2*6 - 3*5, 3*4 - 1*6, 1*5 - 2*4)
+        //                       = (12 - 15, 12 - 6, 5 - 8)
+        //                       = (-3, 6, -3)
+        let expected = Matrix::new(3, 1, vec![-3i32, 6, -3]);
+        assert_eq!(result, expected);
+    }
+
+    /// Test cross product with complex numbers
+    #[test]
+    fn test_cross_product_complex() {
+        use num_complex::Complex;
+
+        let a = Matrix::new(
+            3,
+            1,
+            vec![
+                Complex::new(1.0, 0.0),
+                Complex::new(0.0, 1.0),
+                Complex::new(0.0, 0.0),
+            ],
+        );
+        let b = Matrix::new(
+            3,
+            1,
+            vec![
+                Complex::new(0.0, 0.0),
+                Complex::new(1.0, 0.0),
+                Complex::new(0.0, 1.0),
+            ],
+        );
+
+        let result = a.cross(&b).unwrap();
+
+        // (1+0i, 0+1i, 0) × (0, 1, 0+1i)
+        // = ((0+1i)*(0+1i) - 0*1, 0*0 - (1+0i)*(0+1i), (1+0i)*1 - (0+1i)*0)
+        // = (i*i - 0, 0 - i, 1 - 0)
+        // = (-1, -i, 1)
+        let expected = Matrix::new(
+            3,
+            1,
+            vec![
+                Complex::new(-1.0, 0.0),
+                Complex::new(0.0, -1.0),
+                Complex::new(1.0, 0.0),
+            ],
+        );
+
+        assert_eq!(result, expected);
+    }
+
+    /// Test cross product computation correctness with specific example
+    #[test]
+    fn test_cross_product_computation() {
+        let a = Matrix::new(3, 1, vec![2.0, 3.0, 4.0]);
+        let b = Matrix::new(3, 1, vec![5.0, 6.0, 7.0]);
+
+        let result = a.cross(&b).unwrap();
+
+        // (2, 3, 4) × (5, 6, 7) = (3*7 - 4*6, 4*5 - 2*7, 2*6 - 3*5)
+        //                       = (21 - 24, 20 - 14, 12 - 15)
+        //                       = (-3, 6, -3)
+        let expected = Matrix::new(3, 1, vec![-3.0, 6.0, -3.0]);
+        assert_eq!(result, expected);
+    }
+
+    /// Test cross product error: wrong dimensions (not 3-element)
+    #[test]
+    fn test_cross_product_error_wrong_length() {
+        let a = Matrix::new(2, 1, vec![1.0, 2.0]);
+        let b = Matrix::new(2, 1, vec![3.0, 4.0]);
+
+        assert_eq!(a.cross(&b).unwrap_err(), MatrixError::DimensionMismatch);
+
+        let a = Matrix::new(4, 1, vec![1.0, 2.0, 3.0, 4.0]);
+        let b = Matrix::new(4, 1, vec![5.0, 6.0, 7.0, 8.0]);
+
+        assert_eq!(a.cross(&b).unwrap_err(), MatrixError::DimensionMismatch);
+    }
+
+    /// Test cross product error: shape mismatch (one row, one column)
+    #[test]
+    fn test_cross_product_error_shape_mismatch() {
+        let a = Matrix::new(3, 1, vec![1.0, 2.0, 3.0]); // column vector
+        let b = Matrix::new(1, 3, vec![4.0, 5.0, 6.0]); // row vector
+
+        assert_eq!(a.cross(&b).unwrap_err(), MatrixError::DimensionMismatch);
+    }
+
+    /// Test cross product error: not a vector (matrix)
+    #[test]
+    fn test_cross_product_error_not_vector() {
+        let a = Matrix::new(3, 3, vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0]);
+        let b = Matrix::new(3, 3, vec![9.0, 8.0, 7.0, 6.0, 5.0, 4.0, 3.0, 2.0, 1.0]);
+
+        assert_eq!(a.cross(&b).unwrap_err(), MatrixError::DimensionMismatch);
+    }
+
+    /// Test cross product right-hand rule orientation
+    #[test]
+    fn test_cross_product_right_hand_rule() {
+        // Right-hand rule: if fingers curl from a to b, thumb points to a × b
+        // Positive orientation test cases
+
+        let a = Matrix::new(3, 1, vec![1.0, 0.0, 0.0]);
+        let b = Matrix::new(3, 1, vec![0.0, 1.0, 0.0]);
+        let result = a.cross(&b).unwrap();
+
+        // Should point in positive z direction
+        assert_eq!(result.get(0, 0), 0.0);
+        assert_eq!(result.get(1, 0), 0.0);
+        assert_eq!(result.get(2, 0), 1.0);
+
+        // Another test: (1, 1, 0) × (0, 1, 1) should point in positive x-direction
+        let a = Matrix::new(3, 1, vec![1.0, 1.0, 0.0]);
+        let b = Matrix::new(3, 1, vec![0.0, 1.0, 1.0]);
+        let result = a.cross(&b).unwrap();
+
+        // (1, 1, 0) × (0, 1, 1) = (1*1 - 0*1, 0*0 - 1*1, 1*1 - 1*0) = (1, -1, 1)
+        assert_eq!(result.get(0, 0), 1.0);
+        assert_eq!(result.get(1, 0), -1.0);
+        assert_eq!(result.get(2, 0), 1.0);
+    }
 }

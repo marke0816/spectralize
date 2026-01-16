@@ -13,6 +13,7 @@ A high-performance, generic matrix library for Rust with support for real, integ
 - **Advanced Operations**:
   - Dot product (inner product)
   - Outer product
+  - Cross product (3D vector cross product)
   - Matrix transpose
   - Trace (sum of diagonal elements)
   - Determinant calculation (via PLU decomposition)
@@ -171,6 +172,11 @@ let c = Matrix::new(3, 1, vec![1.0, 2.0, 3.0]);
 let d = Matrix::new(2, 1, vec![4.0, 5.0]);
 let outer = c.outer(&d);  // Produces a 3x2 matrix
 
+// Cross product (3D vectors only)
+let v1 = Matrix::new(3, 1, vec![1.0, 0.0, 0.0]);  // i
+let v2 = Matrix::new(3, 1, vec![0.0, 1.0, 0.0]);  // j
+let cross = v1.cross(&v2).unwrap();  // Returns k = (0, 0, 1)
+
 // Transpose
 let m = Matrix::new(2, 3, vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0]);
 let m_t = m.transpose();  // Produces a 3x2 matrix
@@ -196,6 +202,44 @@ let invertible_singular = singular.is_invertible();  // false
 // Checked variants (no panic on non-square)
 let det_checked = m.try_determinant().unwrap();  // Ok(-2.0)
 ```
+
+### Cross Product
+
+The cross product computes the vector cross product for 3D vectors, producing a vector orthogonal to both inputs following the right-hand rule.
+
+```rust
+use spectralize::Matrix;
+
+// Column vectors (3x1)
+let i = Matrix::new(3, 1, vec![1.0, 0.0, 0.0]);
+let j = Matrix::new(3, 1, vec![0.0, 1.0, 0.0]);
+let k = i.cross(&j).unwrap();  // (0, 0, 1)
+
+// Row vectors (1x3) also supported
+let v1 = Matrix::new(1, 3, vec![2.0, 3.0, 4.0]);
+let v2 = Matrix::new(1, 3, vec![5.0, 6.0, 7.0]);
+let result = v1.cross(&v2).unwrap();  // (-3, 6, -3)
+
+// Works with all numeric types
+let int_v1 = Matrix::new(3, 1, vec![1i32, 2, 3]);
+let int_v2 = Matrix::new(3, 1, vec![4i32, 5, 6]);
+let int_cross = int_v1.cross(&int_v2).unwrap();  // (-3, 6, -3)
+
+// Error handling for invalid dimensions
+let wrong_size = Matrix::new(2, 1, vec![1.0, 2.0]);
+assert!(wrong_size.cross(&i).is_err());  // DimensionMismatch
+```
+
+**Properties:**
+- **Orthogonality**: The result is perpendicular to both input vectors: `a · (a × b) = 0` and `b · (a × b) = 0`
+- **Anti-commutativity**: `a × b = -(b × a)`
+- **Right-hand rule**: Follows standard mathematical orientation
+- **Parallel vectors**: `a × ka = 0` (zero vector)
+
+**Constraints:**
+- Both inputs must be 3-element vectors (3×1 column or 1×3 row)
+- Both vectors must have the same shape
+- Returns `MatrixError::DimensionMismatch` for invalid inputs
 
 ### Matrix Norms
 
@@ -301,6 +345,7 @@ let perm = Matrix::<f64>::perm(4, 4, vec![2, 4, 3, 1]);
 - `pow(n)` - Matrix exponentiation (A^n)
 - `dot(other)` - Dot product
 - `outer(other)` - Outer product
+- `cross(other)` - Cross product (3D vectors only, returns Result)
 - `transpose()` - Matrix transpose
 - `trace()` - Trace (sum of diagonal elements, square matrices only)
 - `determinant()` - Determinant via PLU decomposition with partial pivoting (square matrices only)
@@ -319,11 +364,24 @@ let perm = Matrix::<f64>::perm(4, 4, vec![2, 4, 3, 1]);
 
 ## Examples
 
-Run the included example to see complex number operations:
+Run the included examples to see various operations in action:
 
 ```bash
-cargo run --example complex_demo
+# Float matrix operations (f32 and f64)
+cargo run --example float_matrices
+
+# Integer matrix operations (i32 and i64)
+cargo run --example integer_matrices
+
+# Complex number operations (Complex<f32> and Complex<f64>)
+cargo run --example complex_matrices
 ```
+
+Each example demonstrates:
+- Matrix creation and manipulation
+- Arithmetic operations (addition, multiplication, etc.)
+- Advanced operations (determinants, norms, cross products)
+- Type-specific features and considerations
 
 ## Design Philosophy
 
@@ -361,13 +419,15 @@ src/
 └── matrix/
     ├── mod.rs          # Core Matrix struct and basic operations
     ├── element.rs      # MatrixElement trait and implementations
-    ├── arithmetic.rs   # Arithmetic operations (Add, Sub, Mul, etc.)
+    ├── arithmetic.rs   # Arithmetic operations (Add, Sub, Mul, cross product, etc.)
     ├── append.rs       # Matrix concatenation operations
     ├── decomposition.rs # PLU decomposition, determinant, and invertibility
     ├── norm.rs         # Matrix norms (Frobenius, 1-norm, infinity norm)
-    └── tests.rs        # Comprehensive test suite (185+ tests)
+    └── tests.rs        # Comprehensive test suite (225+ tests)
 examples/
-└── complex_demo.rs     # Example using complex numbers
+├── float_matrices.rs    # Float operations (f32, f64)
+├── integer_matrices.rs  # Integer operations (i32, i64)
+└── complex_matrices.rs  # Complex number operations
 ```
 
 ## Future Plans

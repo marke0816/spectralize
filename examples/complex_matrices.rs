@@ -184,8 +184,58 @@ fn main() {
     println!("1-norm (max column sum): {:.4}", e.norm_one());
     println!("Infinity norm (max row sum): {:.4}", e.norm_inf());
 
+    // ==================== Cross Product (3D Complex Vectors) ====================
+    println!("\n11. Cross Product (3D Complex Vectors)");
+
+    // Complex vectors
+    let cv1 = Matrix::new(3, 1, vec![
+        Complex::new(1.0, 0.0),  // 1
+        Complex::new(0.0, 1.0),  // i
+        Complex::new(0.0, 0.0),  // 0
+    ]);
+    let cv2 = Matrix::new(3, 1, vec![
+        Complex::new(0.0, 0.0),  // 0
+        Complex::new(1.0, 0.0),  // 1
+        Complex::new(0.0, 1.0),  // i
+    ]);
+
+    println!("Complex vector v1 = (1, i, 0):");
+    print_matrix(&cv1);
+    println!("Complex vector v2 = (0, 1, i):");
+    print_matrix(&cv2);
+
+    let c_cross = cv1.cross(&cv2).unwrap();
+    println!("v1 × v2:");
+    print_matrix(&c_cross);
+    println!("Formula: (i·i - 0·1, 0·0 - 1·i, 1·1 - i·0) = (-1, -i, 1)");
+
+    // Verify orthogonality with complex dot product
+    let cv1_dot_result = cv1.dot(&c_cross);
+    let cv2_dot_result = cv2.dot(&c_cross);
+    println!("\nOrthogonality check:");
+    println!("v1 · (v1 × v2) = {} (magnitude: {:.10})",
+             cv1_dot_result, cv1_dot_result.norm());
+    println!("v2 · (v1 × v2) = {} (magnitude: {:.10})",
+             cv2_dot_result, cv2_dot_result.norm());
+
+    // Real-valued complex vectors
+    let real_cv1 = Matrix::new(3, 1, vec![
+        Complex::new(2.0, 0.0),
+        Complex::new(3.0, 0.0),
+        Complex::new(4.0, 0.0),
+    ]);
+    let real_cv2 = Matrix::new(3, 1, vec![
+        Complex::new(5.0, 0.0),
+        Complex::new(6.0, 0.0),
+        Complex::new(7.0, 0.0),
+    ]);
+    let real_cross = real_cv1.cross(&real_cv2).unwrap();
+    println!("\nReal-valued complex vectors (2+0i, 3+0i, 4+0i) × (5+0i, 6+0i, 7+0i):");
+    print_matrix(&real_cross);
+    println!("Result: same as real arithmetic");
+
     // ==================== Approximate Equality ====================
-    println!("\n11. Approximate Equality");
+    println!("\n12. Approximate Equality");
 
     let f1 = Matrix::new(2, 2, vec![
         Complex::new(1.0, 1.0),
@@ -205,7 +255,7 @@ fn main() {
     println!("F1 ≈ F2 (tol=1e-9)? {}", f1.approx_eq(&f2, 1e-9));
 
     // ==================== Concatenation ====================
-    println!("\n12. Matrix Concatenation");
+    println!("\n13. Matrix Concatenation");
 
     let left = Matrix::new(2, 2, vec![
         Complex::new(1.0, 0.0),
@@ -243,7 +293,7 @@ fn main() {
     print_matrix(&v_concat);
 
     // ==================== Checked APIs ====================
-    println!("\n13. Checked APIs (error handling)");
+    println!("\n14. Checked APIs (error handling)");
 
     let g = Matrix::new(2, 3, vec![
         Complex::new(1.0, 1.0),
@@ -278,7 +328,7 @@ fn main() {
     }
 
     // ==================== Complex<f32> Examples ====================
-    println!("\n14. Complex<f32> Examples (32-bit floats)");
+    println!("\n15. Complex<f32> Examples (32-bit floats)");
 
     let a_f32 = Matrix::new(2, 2, vec![
         Complex::new(1.0f32, 1.0f32),
@@ -309,7 +359,7 @@ fn main() {
     println!("Is A invertible (Complex<f32>)? {}", a_f32.is_invertible());
 
     // ==================== Special Complex Matrices ====================
-    println!("\n15. Special Complex Matrices");
+    println!("\n16. Special Complex Matrices");
 
     // Pauli matrices (important in quantum mechanics)
     let pauli_x = Matrix::new(2, 2, vec![

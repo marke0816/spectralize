@@ -446,4 +446,58 @@ where
             data,
         }
     }
+
+    /// Cross product of two 3D vectors
+    /// Computes the vector cross product for 3-element vectors
+    /// Both inputs must be either column vectors (3×1) or row vectors (1×3)
+    /// Returns a vector with the same shape as the inputs
+    ///
+    /// Formula: a × b = (a₂b₃ - a₃b₂, a₃b₁ - a₁b₃, a₁b₂ - a₂b₁)
+    ///
+    /// # Errors
+    /// Returns `MatrixError::DimensionMismatch` if:
+    /// - Either matrix is not a 3-element vector (not 3×1 or 1×3)
+    /// - The matrices have different shapes (one row, one column)
+    pub fn cross(&self, other: &Matrix<T>) -> Result<Matrix<T>, crate::matrix::MatrixError>
+    where
+        T: Mul<Output = T> + Sub<Output = T>,
+    {
+        use crate::matrix::MatrixError;
+
+        // Check that both matrices are 3-element vectors
+        let self_is_col = self.rows == 3 && self.cols == 1;
+        let self_is_row = self.rows == 1 && self.cols == 3;
+        let other_is_col = other.rows == 3 && other.cols == 1;
+        let other_is_row = other.rows == 1 && other.cols == 3;
+
+        if !((self_is_col || self_is_row) && (other_is_col || other_is_row)) {
+            return Err(MatrixError::DimensionMismatch);
+        }
+
+        // Check that both have the same shape
+        if self.rows != other.rows || self.cols != other.cols {
+            return Err(MatrixError::DimensionMismatch);
+        }
+
+        // Extract components (direct indexing, works for both row and column vectors)
+        let a1 = &self.data[0];
+        let a2 = &self.data[1];
+        let a3 = &self.data[2];
+
+        let b1 = &other.data[0];
+        let b2 = &other.data[1];
+        let b3 = &other.data[2];
+
+        // Compute cross product: a × b = (a₂b₃ - a₃b₂, a₃b₁ - a₁b₃, a₁b₂ - a₂b₁)
+        let mut data = Vec::with_capacity(3);
+        data.push(a2.clone() * b3.clone() - a3.clone() * b2.clone());
+        data.push(a3.clone() * b1.clone() - a1.clone() * b3.clone());
+        data.push(a1.clone() * b2.clone() - a2.clone() * b1.clone());
+
+        Ok(Matrix {
+            rows: self.rows,
+            cols: self.cols,
+            data,
+        })
+    }
 }

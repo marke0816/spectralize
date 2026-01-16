@@ -155,8 +155,57 @@ fn main() {
     println!("1-norm (max column sum): {:.4}", e_f64.norm_one());
     println!("Infinity norm (max row sum): {:.4}", e_f64.norm_inf());
 
+    // ==================== Cross Product (3D Vectors) ====================
+    println!("\n11. Cross Product (3D Vectors)");
+
+    // Column vectors
+    let v1 = Matrix::new(3, 1, vec![1.0, 0.0, 0.0]); // i
+    let v2 = Matrix::new(3, 1, vec![0.0, 1.0, 0.0]); // j
+
+    println!("Vector v1 (3x1 column):");
+    print_matrix(&v1);
+    println!("Vector v2 (3x1 column):");
+    print_matrix(&v2);
+
+    let cross_result = v1.cross(&v2).unwrap();
+    println!("v1 × v2 (cross product):");
+    print_matrix(&cross_result);
+    println!("Expected: k = (0, 0, 1)");
+
+    // Demonstrate orthogonality
+    let a_vec = Matrix::new(3, 1, vec![2.0, 3.0, 4.0]);
+    let b_vec = Matrix::new(3, 1, vec![5.0, 6.0, 7.0]);
+    let c_vec = a_vec.cross(&b_vec).unwrap();
+
+    println!("\nVector a:");
+    print_matrix(&a_vec);
+    println!("Vector b:");
+    print_matrix(&b_vec);
+    println!("a × b:");
+    print_matrix(&c_vec);
+
+    // Verify orthogonality: a · (a × b) = 0 and b · (a × b) = 0
+    let a_dot_c = a_vec.dot(&c_vec);
+    let b_dot_c = b_vec.dot(&c_vec);
+    println!("a · (a × b) = {:.10} (should be ~0)", a_dot_c);
+    println!("b · (a × b) = {:.10} (should be ~0)", b_dot_c);
+
+    // Row vectors also work
+    let row1 = Matrix::new(1, 3, vec![1.0, 2.0, 3.0]);
+    let row2 = Matrix::new(1, 3, vec![4.0, 5.0, 6.0]);
+    let row_cross = row1.cross(&row2).unwrap();
+    println!("\nRow vector cross product (1x3):");
+    print_matrix(&row_cross);
+
+    // Parallel vectors give zero vector
+    let parallel1 = Matrix::new(3, 1, vec![1.0, 2.0, 3.0]);
+    let parallel2 = Matrix::new(3, 1, vec![2.0, 4.0, 6.0]); // 2 * parallel1
+    let zero_result = parallel1.cross(&parallel2).unwrap();
+    println!("\nParallel vectors (v × 2v) = zero:");
+    print_matrix(&zero_result);
+
     // ==================== Approximate Equality ====================
-    println!("\n11. Approximate Equality");
+    println!("\n12. Approximate Equality");
 
     let f1 = Matrix::new(2, 2, vec![1.0, 2.0, 3.0, 4.0]);
     let f2 = Matrix::new(2, 2, vec![1.0000001, 2.0, 3.0, 4.0]);
@@ -166,7 +215,7 @@ fn main() {
     println!("F1 ≈ F2 (tol=1e-9)? {}", f1.approx_eq(&f2, 1e-9));
 
     // ==================== Concatenation ====================
-    println!("\n12. Matrix Concatenation");
+    println!("\n13. Matrix Concatenation");
 
     let left = Matrix::new(2, 2, vec![1.0, 2.0, 3.0, 4.0]);
     let right = Matrix::new(2, 1, vec![5.0, 6.0]);
@@ -188,7 +237,7 @@ fn main() {
     print_matrix(&v_concat);
 
     // ==================== Checked APIs ====================
-    println!("\n13. Checked APIs (error handling)");
+    println!("\n14. Checked APIs (error handling)");
 
     let g = Matrix::new(2, 3, vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0]);
 
@@ -216,7 +265,7 @@ fn main() {
     }
 
     // ==================== f32 Examples ====================
-    println!("\n14. f32 Examples (32-bit floats)");
+    println!("\n15. f32 Examples (32-bit floats)");
 
     let a_f32 = Matrix::new(2, 2, vec![
         1.0f32, 2.0f32,

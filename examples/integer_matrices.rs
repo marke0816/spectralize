@@ -169,8 +169,53 @@ fn main() {
     println!("1-norm (max column sum): {}", f_i32.norm_one());
     println!("Infinity norm (max row sum): {}", f_i32.norm_inf());
 
+    // ==================== Cross Product (3D Integer Vectors) ====================
+    println!("\n11. Cross Product (3D Integer Vectors)");
+
+    // Integer vectors - exact arithmetic
+    let i_vec = Matrix::new(3, 1, vec![1, 0, 0]); // i
+    let j_vec = Matrix::new(3, 1, vec![0, 1, 0]); // j
+    let k_vec = Matrix::new(3, 1, vec![0, 0, 1]); // k
+
+    println!("Standard basis vectors:");
+    println!("i = (1, 0, 0), j = (0, 1, 0), k = (0, 0, 1)");
+
+    let i_cross_j = i_vec.cross(&j_vec).unwrap();
+    println!("\ni × j:");
+    print_matrix(&i_cross_j);
+    println!("Expected: k = (0, 0, 1) ✓");
+
+    let j_cross_k = j_vec.cross(&k_vec).unwrap();
+    println!("\nj × k:");
+    print_matrix(&j_cross_k);
+    println!("Expected: i = (1, 0, 0) ✓");
+
+    let k_cross_i = k_vec.cross(&i_vec).unwrap();
+    println!("\nk × i:");
+    print_matrix(&k_cross_i);
+    println!("Expected: j = (0, 1, 0) ✓");
+
+    // Practical example with integer coordinates
+    let point1 = Matrix::new(3, 1, vec![2, 3, 4]);
+    let point2 = Matrix::new(3, 1, vec![5, 6, 7]);
+    let normal = point1.cross(&point2).unwrap();
+
+    println!("\nVector p1:");
+    print_matrix(&point1);
+    println!("Vector p2:");
+    print_matrix(&point2);
+    println!("p1 × p2 (normal vector, exact):");
+    print_matrix(&normal);
+    println!("Result: ({}, {}, {})", normal.get(0, 0), normal.get(1, 0), normal.get(2, 0));
+
+    // Anti-commutativity: a × b = -(b × a)
+    let reverse = point2.cross(&point1).unwrap();
+    println!("\np2 × p1:");
+    print_matrix(&reverse);
+    println!("Notice: p2 × p1 = -(p1 × p2) (anti-commutative)");
+
     // ==================== Concatenation ====================
-    println!("\n11. Matrix Concatenation");
+    println!("\n12. Matrix Concatenation");
 
     let left = Matrix::new(2, 2, vec![1, 2, 3, 4]);
     let right = Matrix::new(2, 1, vec![5, 6]);
@@ -204,7 +249,7 @@ fn main() {
     print_matrix(&with_col);
 
     // ==================== Checked APIs ====================
-    println!("\n12. Checked APIs (error handling)");
+    println!("\n13. Checked APIs (error handling)");
 
     let h = Matrix::new(2, 3, vec![1, 2, 3, 4, 5, 6]);
 
@@ -238,7 +283,7 @@ fn main() {
     }
 
     // ==================== i64 Examples ====================
-    println!("\n13. i64 Examples (64-bit integers)");
+    println!("\n14. i64 Examples (64-bit integers)");
 
     let a_i64 = Matrix::new(2, 2, vec![
         1i64, 2i64,
@@ -271,7 +316,7 @@ fn main() {
     println!("Determinant: {}", large_i64.determinant());
 
     // ==================== Integer Overflow Warning ====================
-    println!("\n14. Integer Overflow Considerations");
+    println!("\n15. Integer Overflow Considerations");
     println!("NOTE: Integer determinants use the Bareiss algorithm for exact computation.");
     println!("WARNING: Large matrices or large values may overflow. Consider using i64 or i128");
     println!("for better range, or use f64 for approximate results on very large computations.");
