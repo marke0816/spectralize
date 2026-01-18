@@ -1,9 +1,11 @@
 pub mod append;
 pub mod arithmetic;
+pub mod const_matrix;
 pub mod decomposition;
 pub mod element;
 pub mod norm;
 
+pub use const_matrix::ConstMatrix;
 pub use element::{MatrixElement, NanCheck, ToleranceOps};
 use crate::matrix::decomposition::PivotOrd;
 use crate::matrix::norm::Abs;
@@ -378,5 +380,7 @@ where
     }
 }
 
+#[cfg(test)]
+mod const_matrix_tests;
 #[cfg(test)]
 mod tests;

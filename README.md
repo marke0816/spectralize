@@ -4,6 +4,7 @@ A high-performance, generic matrix library for Rust with support for real, integ
 
 ## Features
 
+- **Compile-Time Dimension Matrices**: `ConstMatrix<T, R, C>` with const generics for zero-overhead dimension checking at compile time
 - **Fully Generic**: Works with any numeric type including `f32`, `f64`, all integer types (`i8` through `i128`, `u8` through `u128`), and complex numbers
 - **Rich Arithmetic Operations**:
   - Matrix addition and subtraction
@@ -19,6 +20,7 @@ A high-performance, generic matrix library for Rust with support for real, integ
   - Determinant calculation (via PLU decomposition)
   - Invertibility checking
   - Matrix norms (Frobenius, 1-norm, infinity norm)
+  - Specialized operations for small matrices: closed-form determinants and inverses for 2x2, 3x3, and 4x4 `ConstMatrix`
 - **Matrix Construction**:
   - Zero matrices
   - Identity matrices
@@ -36,8 +38,8 @@ A high-performance, generic matrix library for Rust with support for real, integ
   - Non-panicking `try_*` variants for indexing, concatenation, and core ops
   - `MatrixError` for dimension/index errors
 - **Memory Efficient**: Optimized implementations with in-place mutations where possible
-- **Type Safe**: Compile-time dimension checking through Rust's type system
-- **Comprehensive Test Suite**: 200+ tests covering all operations
+- **Type Safe**: Compile-time dimension checking with `ConstMatrix<T, R, C>` const generics; runtime dimension checking with `Matrix<T>`
+- **Comprehensive Test Suite**: 330+ tests covering all operations for both `Matrix` and `ConstMatrix`
 - **Numerical Stability**: PLU decomposition with partial pivoting for robust computations
 
 ## Installation
@@ -304,6 +306,235 @@ let with_col = a.with_col_vec(&[9.0, 10.0]);  // Results in 2x3 matrix
 let with_cols_checked = a.try_with_cols(&b).unwrap();
 ```
 
+## Compile-Time Dimension Matrices
+
+Spectralize provides `ConstMatrix<T, R, C>` for matrices with compile-time known dimensions. The type system enforces dimension compatibility at compile time, catching dimension mismatches before your code runs!
+
+### Why ConstMatrix?
+
+```rust
+use spectralize::matrix::ConstMatrix;
+
+// Dimensions are part of the type
+let a: ConstMatrix<f64, 2, 3> = ConstMatrix::new(vec![
+    1.0, 2.0, 3.0,
+    4.0, 5.0, 6.0,
+]);
+
+let b: ConstMatrix<f64, 3, 2> = ConstMatrix::new(vec![
+    7.0, 8.0,
+    9.0, 10.0,
+    11.0, 12.0,
+]);
+
+// Matrix multiplication: type system enforces inner dimension match!
+let c: ConstMatrix<f64, 2, 2> = a * b;  // OK: (2x3) * (3x2) = (2x2)
+
+// This would be a compile error:
+// let wrong: ConstMatrix<f64, 2, 2> = ConstMatrix::identity();
+// let result = wrong * a;  // Error: expected ConstMatrix<_, 2, 3>, found ConstMatrix<_, 2, 2>
+```
+
+**Key Benefits:**
+- **Zero runtime overhead**: No dimension checks at runtime - the type system guarantees correctness
+- **Early error detection**: Dimension mismatches caught at compile time, not runtime
+- **Better IDE support**: Type hints show exact matrix dimensions
+- **Self-documenting code**: Function signatures clearly show expected dimensions
+
+### Basic ConstMatrix Operations
+
+```rust
+use spectralize::matrix::ConstMatrix;
+
+// Create matrices with compile-time dimensions
+let a: ConstMatrix<f64, 2, 3> = ConstMatrix::new(vec![
+    1.0, 2.0, 3.0,
+    4.0, 5.0, 6.0,
+]);
+
+// Identity matrix - dimensions in the type!
+let identity: ConstMatrix<i32, 3, 3> = ConstMatrix::identity();
+
+// Zero matrix
+let zero: ConstMatrix<f64, 2, 4> = ConstMatrix::zero();
+
+// Access elements (same API as Matrix)
+let element = a.get(0, 1);
+let element_ref = a.get_ref(0, 1);  // Zero-cost reference
+
+// Transpose - note how dimensions swap in the type!
+let at: ConstMatrix<f64, 3, 2> = a.transpose();
+```
+
+### Compile-Time Arithmetic
+
+All arithmetic operations enforce dimension compatibility at compile time:
+
+```rust
+use spectralize::matrix::ConstMatrix;
+
+let a: ConstMatrix<i32, 2, 3> = ConstMatrix::new(vec![1, 2, 3, 4, 5, 6]);
+let b: ConstMatrix<i32, 2, 3> = ConstMatrix::new(vec![10, 20, 30, 40, 50, 60]);
+
+// Addition/subtraction: requires matching dimensions
+let sum = &a + &b;  // OK: both are 2x3
+let diff = &a - &b;
+
+// Matrix multiplication: inner dimensions must match
+let m1: ConstMatrix<i32, 2, 3> = ConstMatrix::identity();
+let m2: ConstMatrix<i32, 3, 2> = ConstMatrix::identity();
+let m3: ConstMatrix<i32, 2, 2> = m1 * m2;  // OK: (2x3) * (3x2) = (2x2)
+
+// Scalar multiplication (both directions)
+let scaled = &a * 2;
+let scaled2 = 3 * &a;
+
+// Works with all types: f32, f64, i32, Complex<f64>, etc.
+let complex_m: ConstMatrix<num_complex::Complex<f64>, 2, 2> = ConstMatrix::identity();
+```
+
+### Advanced ConstMatrix Operations
+
+```rust
+use spectralize::matrix::ConstMatrix;
+
+let m: ConstMatrix<f64, 3, 3> = ConstMatrix::new(vec![
+    1.0, 2.0, 3.0,
+    4.0, 5.0, 6.0,
+    7.0, 8.0, 9.0,
+]);
+
+// Trace (sum of diagonal)
+let tr = m.trace();  // 1 + 5 + 9 = 15
+
+// Matrix power
+let squared = m.pow(2);  // M^2
+
+// Dot product
+let v1: ConstMatrix<f64, 1, 3> = ConstMatrix::new(vec![1.0, 2.0, 3.0]);
+let v2: ConstMatrix<f64, 1, 3> = ConstMatrix::new(vec![4.0, 5.0, 6.0]);
+let dot = v1.dot(&v2);  // 1*4 + 2*5 + 3*6 = 32
+
+// Outer product (returns dynamic Matrix due to const generic limitations)
+let v3: ConstMatrix<f64, 3, 1> = ConstMatrix::new(vec![1.0, 2.0, 3.0]);
+let v4: ConstMatrix<f64, 2, 1> = ConstMatrix::new(vec![4.0, 5.0]);
+let outer = v3.outer(&v4);  // Returns Matrix<f64> (3x2)
+
+// Cross product (3D vectors only)
+let i: ConstMatrix<f64, 3, 1> = ConstMatrix::new(vec![1.0, 0.0, 0.0]);
+let j: ConstMatrix<f64, 3, 1> = ConstMatrix::new(vec![0.0, 1.0, 0.0]);
+let k = i.cross(&j);  // (0, 0, 1)
+
+// Approximate equality with tolerance
+let a: ConstMatrix<f64, 2, 2> = ConstMatrix::new(vec![1.0, 2.0, 3.0, 4.0]);
+let b: ConstMatrix<f64, 2, 2> = ConstMatrix::new(vec![1.0, 2.0, 3.0, 4.0 + 1e-12]);
+assert!(a.approx_eq(&b, 1e-10));
+```
+
+### ConstMatrix Norms
+
+Matrix norms are available for all ConstMatrix sizes:
+
+```rust
+use spectralize::matrix::ConstMatrix;
+
+let m: ConstMatrix<f64, 2, 3> = ConstMatrix::new(vec![
+    1.0, 2.0, 3.0,
+    4.0, 5.0, 6.0,
+]);
+
+// Frobenius norm: sqrt(sum of squares)
+let fro = m.frobenius_norm();  // sqrt(1 + 4 + 9 + 16 + 25 + 36)
+
+// Infinity norm: maximum absolute row sum
+let inf = m.inf_norm();  // max(|1|+|2|+|3|, |4|+|5|+|6|) = 15
+
+// One norm: maximum absolute column sum
+let one = m.one_norm();  // max(|1|+|4|, |2|+|5|, |3|+|6|) = max(5, 7, 9) = 9
+```
+
+### Specialized Operations (2x2, 3x3, 4x4)
+
+For small matrices, `ConstMatrix` provides optimized closed-form determinants and inverses:
+
+```rust
+use spectralize::matrix::ConstMatrix;
+
+// 2x2 determinant (closed-form: ad - bc)
+let m2: ConstMatrix<f64, 2, 2> = ConstMatrix::new(vec![
+    1.0, 2.0,
+    3.0, 4.0,
+]);
+let det2 = m2.determinant();  // -2.0
+
+// 2x2 inverse
+let inv2 = m2.inverse().unwrap();  // Returns Option<ConstMatrix<f64, 2, 2>>
+let identity = &m2 * &inv2;  // Verify M * M^-1 = I
+
+// 3x3 determinant (cofactor expansion)
+let m3: ConstMatrix<i32, 3, 3> = ConstMatrix::new(vec![
+    1, 2, 3,
+    0, 1, 4,
+    5, 6, 0,
+]);
+let det3 = m3.determinant();
+
+// 3x3 inverse
+let m3f: ConstMatrix<f64, 3, 3> = ConstMatrix::identity();
+let inv3 = m3f.inverse().unwrap();
+
+// 4x4 determinant (cofactor expansion along first row)
+let m4: ConstMatrix<f64, 4, 4> = ConstMatrix::identity();
+let det4 = m4.determinant();  // 1.0
+
+// 4x4 inverse (adjugate method)
+let inv4 = m4.inverse().unwrap();
+
+// Singular matrices return None
+let singular: ConstMatrix<f64, 2, 2> = ConstMatrix::new(vec![
+    1.0, 2.0,
+    2.0, 4.0,  // Second row is 2 * first row
+]);
+assert!(singular.inverse().is_none());
+```
+
+**Why specialized operations?**
+- **Faster**: Closed-form formulas are faster than general PLU decomposition
+- **Type-safe**: Only available for the correct matrix sizes
+- **Exact for integers**: No tolerance issues with integer matrices
+
+### Converting Between Matrix and ConstMatrix
+
+```rust
+use spectralize::matrix::{Matrix, ConstMatrix};
+
+// ConstMatrix -> Matrix (always succeeds)
+let const_m: ConstMatrix<f64, 2, 3> = ConstMatrix::identity();
+let dyn_m: Matrix<f64> = const_m.into();
+
+// Matrix -> ConstMatrix (fallible, dimensions must match)
+let dyn_m2 = Matrix::new(2, 3, vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0]);
+let const_m2: ConstMatrix<f64, 2, 3> = dyn_m2.try_into().unwrap();
+
+// Dimension mismatch returns Err
+let dyn_m3 = Matrix::<f64>::identity(3, 3);
+let result: Result<ConstMatrix<f64, 2, 2>, _> = dyn_m3.try_into();
+assert!(result.is_err());  // MatrixError::DimensionMismatch
+```
+
+**When to use ConstMatrix vs Matrix:**
+- **Use ConstMatrix when:**
+  - Dimensions are known at compile time
+  - You want the type system to catch dimension errors
+  - Working with small fixed-size matrices (graphics, physics, etc.)
+  - You need specialized 2x2/3x3/4x4 operations
+
+- **Use Matrix when:**
+  - Dimensions are only known at runtime
+  - Matrix size depends on input data
+  - Working with large or variable-sized matrices
+  - You need full decomposition features (PLU, etc.)
+
 ### Permutation Matrices
 
 ```rust
@@ -367,14 +598,14 @@ let perm = Matrix::<f64>::perm(4, 4, vec![2, 4, 3, 1]);
 Run the included examples to see various operations in action:
 
 ```bash
-# Float matrix operations (f32 and f64)
-cargo run --example float_matrices
+# Dynamic Matrix examples
+cargo run --example float_matrices      # Float operations (f32, f64)
+cargo run --example integer_matrices    # Integer operations (i32, i64)
+cargo run --example complex_matrices    # Complex number operations
 
-# Integer matrix operations (i32 and i64)
-cargo run --example integer_matrices
-
-# Complex number operations (Complex<f32> and Complex<f64>)
-cargo run --example complex_matrices
+# ConstMatrix examples (compile-time dimensions)
+cargo run --example const_matrix_demo        # Basic ConstMatrix operations
+cargo run --example const_matrix_arithmetic  # Arithmetic with compile-time checking
 ```
 
 Each example demonstrates:
@@ -382,6 +613,7 @@ Each example demonstrates:
 - Arithmetic operations (addition, multiplication, etc.)
 - Advanced operations (determinants, norms, cross products)
 - Type-specific features and considerations
+- Compile-time dimension safety (ConstMatrix examples)
 
 ## Design Philosophy
 
@@ -415,24 +647,29 @@ cargo test scalar_multiplication
 
 ```
 src/
-├── lib.rs              # Public API exports
+├── lib.rs                    # Public API exports
 └── matrix/
-    ├── mod.rs          # Core Matrix struct and basic operations
-    ├── element.rs      # MatrixElement trait and implementations
-    ├── arithmetic.rs   # Arithmetic operations (Add, Sub, Mul, cross product, etc.)
-    ├── append.rs       # Matrix concatenation operations
-    ├── decomposition.rs # PLU decomposition, determinant, and invertibility
-    ├── norm.rs         # Matrix norms (Frobenius, 1-norm, infinity norm)
-    └── tests.rs        # Comprehensive test suite (225+ tests)
+    ├── mod.rs                # Core Matrix struct and basic operations
+    ├── const_matrix.rs       # ConstMatrix with compile-time dimensions (~1150 lines)
+    ├── const_matrix_tests.rs # ConstMatrix test suite (105 tests)
+    ├── element.rs            # MatrixElement trait and implementations
+    ├── arithmetic.rs         # Arithmetic operations (Add, Sub, Mul, cross product, etc.)
+    ├── append.rs             # Matrix concatenation operations
+    ├── decomposition.rs      # PLU decomposition, determinant, and invertibility
+    ├── norm.rs               # Matrix norms (Frobenius, 1-norm, infinity norm)
+    └── tests.rs              # Matrix test suite (225 tests)
 examples/
-├── float_matrices.rs    # Float operations (f32, f64)
-├── integer_matrices.rs  # Integer operations (i32, i64)
-└── complex_matrices.rs  # Complex number operations
+├── float_matrices.rs           # Float operations (f32, f64)
+├── integer_matrices.rs         # Integer operations (i32, i64)
+├── complex_matrices.rs         # Complex number operations
+├── const_matrix_demo.rs        # ConstMatrix basics
+└── const_matrix_arithmetic.rs  # ConstMatrix arithmetic with type safety
 ```
 
 ## Future Plans
 
-- Matrix inversion (for `A^-n` support in `pow`)
+- General matrix inversion for `Matrix<T>` (for `A^-n` support in `pow`)
+  - Note: 2x2, 3x3, and 4x4 inverses are available for `ConstMatrix`
 - Additional decompositions:
   - QR decomposition
   - Cholesky decomposition
