@@ -348,59 +348,6 @@ impl<T> Matrix<T>
 where
     T: MatrixElement + std::fmt::Debug,
 {
-    /// Matrix exponentiation: raises a square matrix to a non-negative integer power
-    /// Uses binary exponentiation for O(log n) complexity
-    /// A^n = A * A * ... * A (n times)
-    /// A^0 = I (identity matrix)
-    /// A^1 = A
-    pub fn pow(&self, n: u32) -> Matrix<T>
-    where
-        T: Mul<Output = T> + Add<Output = T>,
-    {
-        assert_eq!(
-            self.rows, self.cols,
-            "Matrix must be square for exponentiation"
-        );
-
-        // TODO: Add support for negative exponents when matrix inversion is implemented
-        // For A^(-n), we would need to compute (A^(-1))^n
-
-        match n {
-            0 => {
-                // A^0 = Identity matrix
-                let mut data = vec![T::zero(); self.rows * self.rows];
-                for i in 0..self.rows {
-                    data[i * self.rows + i] = T::one();
-                }
-                Matrix {
-                    rows: self.rows,
-                    cols: self.cols,
-                    data,
-                }
-            }
-            1 => {
-                // A^1 = A
-                self.clone()
-            }
-            _ => {
-                // Binary exponentiation: O(log n) instead of O(n)
-                let mut result = Matrix::identity(self.rows, self.cols);
-                let mut base = self.clone();
-                let mut exp = n;
-
-                while exp > 0 {
-                    if exp % 2 == 1 {
-                        result = result * &base;
-                    }
-                    base = &base * &base;
-                    exp /= 2;
-                }
-
-                result
-            }
-        }
-    }
-
     /// Dot product (inner product) of two matrices treated as vectors
     /// Computes the sum of element-wise products: sum(a[i] * b[i])
     /// Both matrices must have the same total number of elements

@@ -994,6 +994,122 @@ mod exponentiation_tests {
         );
         assert_eq!(result, expected);
     }
+
+    #[test]
+    fn test_pow_negative_one() {
+        // A^(-1) should equal A.inverse()
+        let a = Matrix::new(2, 2, vec![2.0, 0.0, 0.0, 3.0]);
+        let a_neg_one = a.pow(-1);
+        let a_inv = a.inverse();
+
+        assert!(a_neg_one.approx_eq(&a_inv, 1e-10));
+    }
+
+    #[test]
+    fn test_pow_negative_two() {
+        // A^(-2) should equal (A^(-1))^2
+        let a = Matrix::new(2, 2, vec![2.0, 1.0, 1.0, 2.0]);
+        let a_neg_two = a.pow(-2);
+        let a_inv = a.inverse();
+        let a_inv_squared = a_inv.pow(2);
+
+        assert!(a_neg_two.approx_eq(&a_inv_squared, 1e-10));
+    }
+
+    #[test]
+    fn test_pow_positive_times_negative() {
+        // A^2 * A^(-2) = I
+        let a = Matrix::new(2, 2, vec![2.0, 1.0, 1.0, 2.0]);
+        let a_squared = a.pow(2);
+        let a_neg_squared = a.pow(-2);
+        let product = &a_squared * &a_neg_squared;
+        let identity = Matrix::identity(2, 2);
+
+        assert!(product.approx_eq(&identity, 1e-10));
+    }
+
+    #[test]
+    fn test_pow_negative_diagonal() {
+        // Diagonal matrix: A^(-n) should be diagonal with reciprocal powers
+        let a = Matrix::new(3, 3, vec![2.0, 0.0, 0.0, 0.0, 3.0, 0.0, 0.0, 0.0, 4.0]);
+        let a_neg_two = a.pow(-2);
+
+        // Expected: diag(1/4, 1/9, 1/16)
+        let expected = Matrix::new(3, 3, vec![
+            0.25, 0.0, 0.0,
+            0.0, 1.0/9.0, 0.0,
+            0.0, 0.0, 0.0625
+        ]);
+
+        assert!(a_neg_two.approx_eq(&expected, 1e-10));
+    }
+
+    #[test]
+    #[should_panic(expected = "square and invertible")]
+    fn test_pow_negative_singular_panics() {
+        let singular = Matrix::new(2, 2, vec![1.0, 2.0, 2.0, 4.0]);
+        let _ = singular.pow(-1);
+    }
+
+    #[test]
+    fn test_try_pow_negative_singular() {
+        let singular = Matrix::new(2, 2, vec![1.0, 2.0, 2.0, 4.0]);
+        assert!(singular.try_pow(-1).is_err());
+    }
+
+    #[test]
+    fn test_try_pow_negative_success() {
+        let a = Matrix::new(2, 2, vec![2.0, 0.0, 0.0, 3.0]);
+        let a_neg_one = a.try_pow(-1).unwrap();
+        let expected = Matrix::new(2, 2, vec![0.5, 0.0, 0.0, 1.0/3.0]);
+
+        assert!(a_neg_one.approx_eq(&expected, 1e-10));
+    }
+
+    #[test]
+    fn test_pow_negative_f32() {
+        let a = Matrix::new(2, 2, vec![2.0f32, 0.0, 0.0, 3.0]);
+        let a_neg_one = a.pow(-1);
+        let expected = Matrix::new(2, 2, vec![0.5f32, 0.0, 0.0, 1.0/3.0]);
+
+        assert!(a_neg_one.approx_eq(&expected, 1e-5));
+    }
+
+    #[test]
+    fn test_pow_negative_complex() {
+        use num_complex::Complex;
+        let a = Matrix::new(
+            2,
+            2,
+            vec![
+                Complex::new(2.0, 0.0),
+                Complex::new(0.0, 0.0),
+                Complex::new(0.0, 0.0),
+                Complex::new(3.0, 0.0),
+            ],
+        );
+        let a_neg_one = a.pow(-1);
+        let expected = Matrix::new(
+            2,
+            2,
+            vec![
+                Complex::new(0.5, 0.0),
+                Complex::new(0.0, 0.0),
+                Complex::new(0.0, 0.0),
+                Complex::new(1.0/3.0, 0.0),
+            ],
+        );
+
+        assert!(a_neg_one.approx_eq(&expected, 1e-10));
+    }
+
+    #[test]
+    fn test_pow_negative_identity() {
+        // I^(-n) = I for any n
+        let identity = Matrix::<f64>::identity(3, 3);
+        let inv_identity = identity.pow(-5);
+        assert!(inv_identity.approx_eq(&identity, 1e-10));
+    }
 }
 
 // Tests for dot product
@@ -1857,6 +1973,277 @@ mod decomposition_tests {
         let m = Matrix::new(3, 3, vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 2.0, 4.0, 6.0]);
         assert!(!m.is_invertible());
         assert_eq!(m.determinant(), 0.0);
+    }
+
+    // ============================================================================
+    // Matrix Inverse Tests
+    // ============================================================================
+
+    #[test]
+    fn test_inverse_2x2() {
+        // [[1, 2], [3, 4]] has inverse [[-2, 1], [1.5, -0.5]]
+        let a = Matrix::new(2, 2, vec![1.0, 2.0, 3.0, 4.0]);
+        let a_inv = a.inverse();
+
+        // Verify A * A^(-1) ≈ I
+        let identity = &a * &a_inv;
+        let expected_identity = Matrix::identity(2, 2);
+        assert!(
+            identity.approx_eq(&expected_identity, 1e-10),
+            "A * A^(-1) should equal identity"
+        );
+
+        // Verify A^(-1) * A ≈ I
+        let identity2 = &a_inv * &a;
+        assert!(
+            identity2.approx_eq(&expected_identity, 1e-10),
+            "A^(-1) * A should equal identity"
+        );
+    }
+
+    #[test]
+    fn test_inverse_3x3() {
+        let a = Matrix::new(3, 3, vec![1.0, 2.0, 3.0, 0.0, 1.0, 4.0, 5.0, 6.0, 0.0]);
+        let a_inv = a.inverse();
+
+        // Verify A * A^(-1) ≈ I
+        let identity = &a * &a_inv;
+        let expected_identity = Matrix::identity(3, 3);
+        assert!(
+            identity.approx_eq(&expected_identity, 1e-10),
+            "A * A^(-1) should equal identity"
+        );
+
+        // Verify A^(-1) * A ≈ I
+        let identity2 = &a_inv * &a;
+        assert!(
+            identity2.approx_eq(&expected_identity, 1e-10),
+            "A^(-1) * A should equal identity"
+        );
+    }
+
+    #[test]
+    fn test_inverse_5x5() {
+        // Test a larger matrix
+        let a = Matrix::new(
+            5,
+            5,
+            vec![
+                1.0, 0.0, 0.0, 0.0, 0.0, 2.0, 1.0, 0.0, 0.0, 0.0, 3.0, 2.0, 1.0, 0.0, 0.0, 4.0,
+                3.0, 2.0, 1.0, 0.0, 5.0, 4.0, 3.0, 2.0, 1.0,
+            ],
+        );
+        let a_inv = a.inverse();
+
+        // Verify A * A^(-1) ≈ I
+        let identity = &a * &a_inv;
+        let expected_identity = Matrix::identity(5, 5);
+        assert!(
+            identity.approx_eq(&expected_identity, 1e-10),
+            "A * A^(-1) should equal identity for 5x5"
+        );
+    }
+
+    #[test]
+    fn test_inverse_identity() {
+        // Identity matrix is its own inverse
+        let identity = Matrix::<f64>::identity(3, 3);
+        let identity_inv = identity.inverse();
+        assert!(
+            identity.approx_eq(&identity_inv, 1e-10),
+            "Identity should be its own inverse"
+        );
+    }
+
+    #[test]
+    fn test_inverse_diagonal() {
+        // Diagonal matrix with entries [2, 3, 4] has inverse [0.5, 1/3, 0.25]
+        let diag = Matrix::new(3, 3, vec![2.0, 0.0, 0.0, 0.0, 3.0, 0.0, 0.0, 0.0, 4.0]);
+        let diag_inv = diag.inverse();
+
+        let expected = Matrix::new(3, 3, vec![0.5, 0.0, 0.0, 0.0, 1.0 / 3.0, 0.0, 0.0, 0.0, 0.25]);
+
+        assert!(diag_inv.approx_eq(&expected, 1e-10), "Diagonal matrix inverse incorrect");
+    }
+
+    #[test]
+    #[should_panic(expected = "square and invertible")]
+    fn test_inverse_singular_panics() {
+        let singular = Matrix::new(2, 2, vec![1.0, 2.0, 2.0, 4.0]);
+        let _ = singular.inverse();
+    }
+
+    #[test]
+    #[should_panic(expected = "square and invertible")]
+    fn test_inverse_non_square_panics() {
+        let rect = Matrix::new(2, 3, vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0]);
+        let _ = rect.inverse();
+    }
+
+    #[test]
+    fn test_try_inverse_singular() {
+        let singular = Matrix::new(2, 2, vec![1.0, 2.0, 2.0, 4.0]);
+        assert_eq!(
+            singular.try_inverse().unwrap_err(),
+            MatrixError::DimensionMismatch
+        );
+    }
+
+    #[test]
+    fn test_try_inverse_non_square() {
+        let rect = Matrix::new(2, 3, vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0]);
+        assert_eq!(
+            rect.try_inverse().unwrap_err(),
+            MatrixError::DimensionMismatch
+        );
+    }
+
+    #[test]
+    fn test_try_inverse_success() {
+        let a = Matrix::new(2, 2, vec![1.0, 2.0, 3.0, 4.0]);
+        let a_inv = a.try_inverse().unwrap();
+
+        let identity = &a * &a_inv;
+        let expected_identity = Matrix::identity(2, 2);
+        assert!(identity.approx_eq(&expected_identity, 1e-10));
+    }
+
+    #[test]
+    fn test_inverse_with_tol_nearly_singular() {
+        let nearly_singular = Matrix::new(2, 2, vec![1.0, 1.0, 1.0, 1.0 + 1e-10]);
+
+        // With strict tolerance, should succeed
+        let result = nearly_singular.try_inverse_with_tol(1e-12);
+        assert!(result.is_ok(), "Should be invertible with strict tolerance");
+
+        // With loose tolerance, should fail
+        let result = nearly_singular.try_inverse_with_tol(1e-8);
+        assert!(
+            result.is_err(),
+            "Should be singular with loose tolerance"
+        );
+    }
+
+    #[test]
+    fn test_inverse_double_inverse() {
+        // (A^(-1))^(-1) = A
+        let a = Matrix::new(2, 2, vec![1.0, 2.0, 3.0, 4.0]);
+        let a_inv = a.inverse();
+        let a_inv_inv = a_inv.inverse();
+
+        assert!(
+            a.approx_eq(&a_inv_inv, 1e-10),
+            "Double inverse should return original matrix"
+        );
+    }
+
+    #[test]
+    fn test_inverse_determinant_relationship() {
+        // det(A^(-1)) = 1 / det(A)
+        let a = Matrix::new(2, 2, vec![1.0, 2.0, 3.0, 4.0]);
+        let det_a: f64 = a.determinant();
+        let a_inv = a.inverse();
+        let det_a_inv: f64 = a_inv.determinant();
+
+        let expected_det_inv = 1.0 / det_a;
+        assert!(
+            (det_a_inv - expected_det_inv).abs() < 1e-10,
+            "det(A^(-1)) should equal 1/det(A)"
+        );
+    }
+
+    #[test]
+    fn test_inverse_permutation_matrix() {
+        // Permutation matrices are orthogonal: P^(-1) = P^T
+        let p = Matrix::<f64>::perm(3, 3, vec![2, 3, 1]);
+        let p_inv = p.inverse();
+        let p_transpose = p.transpose();
+
+        assert!(
+            p_inv.approx_eq(&p_transpose, 1e-10),
+            "For permutation matrix, inverse should equal transpose"
+        );
+    }
+
+    #[test]
+    fn test_inverse_f32() {
+        let a = Matrix::new(2, 2, vec![2.0f32, 3.0, 1.0, 4.0]);
+        let a_inv = a.inverse();
+
+        let identity = &a * &a_inv;
+        let expected_identity = Matrix::identity(2, 2);
+        assert!(
+            identity.approx_eq(&expected_identity, 1e-5f32),
+            "f32 inverse should work"
+        );
+    }
+
+    #[test]
+    fn test_inverse_with_pivoting() {
+        // Matrix that requires pivoting during PLU decomposition
+        let a = Matrix::new(3, 3, vec![0.0, 1.0, 2.0, 1.0, 0.0, 3.0, 4.0, 5.0, 6.0]);
+        let a_inv = a.inverse();
+
+        let identity = &a * &a_inv;
+        let expected_identity = Matrix::identity(3, 3);
+        assert!(
+            identity.approx_eq(&expected_identity, 1e-10),
+            "Matrix requiring pivoting should invert correctly"
+        );
+    }
+
+    #[test]
+    fn test_inverse_complex() {
+        use num_complex::Complex;
+
+        let a = Matrix::new(
+            2,
+            2,
+            vec![
+                Complex::new(1.0, 0.0),
+                Complex::new(2.0, 0.0),
+                Complex::new(0.0, 1.0),
+                Complex::new(1.0, 1.0),
+            ],
+        );
+        let a_inv = a.try_inverse().unwrap();
+
+        let identity = &a * &a_inv;
+        let expected_identity = Matrix::identity(2, 2);
+        assert!(
+            identity.approx_eq(&expected_identity, 1e-10),
+            "Complex matrix inverse should work"
+        );
+    }
+
+    #[test]
+    fn test_inverse_1x1() {
+        // 1x1 matrix [5] has inverse [0.2]
+        let a = Matrix::new(1, 1, vec![5.0]);
+        let a_inv = a.inverse();
+
+        let expected = Matrix::new(1, 1, vec![0.2]);
+        assert!(a_inv.approx_eq(&expected, 1e-10), "1x1 inverse should be reciprocal");
+    }
+
+    #[test]
+    fn test_inverse_4x4() {
+        // Test a 4x4 matrix
+        let a = Matrix::new(
+            4,
+            4,
+            vec![
+                2.0, 0.0, 0.0, 1.0, 0.0, 3.0, 0.0, 0.0, 0.0, 0.0, 4.0, 0.0, 1.0, 0.0, 0.0, 2.0,
+            ],
+        );
+        let a_inv = a.inverse();
+
+        let identity = &a * &a_inv;
+        let expected_identity = Matrix::identity(4, 4);
+        assert!(
+            identity.approx_eq(&expected_identity, 1e-10),
+            "4x4 matrix inverse should work"
+        );
     }
 }
 

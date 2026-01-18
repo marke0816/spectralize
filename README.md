@@ -10,7 +10,7 @@ A high-performance, generic matrix library for Rust with support for real, integ
   - Matrix addition and subtraction
   - Matrix multiplication
   - Scalar multiplication (both `matrix * scalar` and `scalar * matrix`)
-  - Matrix exponentiation (`A^n`)
+  - Matrix exponentiation (`A^n` for positive n, `A^(-n)` for negative n with invertible matrices)
 - **Advanced Operations**:
   - Dot product (inner product)
   - Outer product
@@ -19,6 +19,7 @@ A high-performance, generic matrix library for Rust with support for real, integ
   - Trace (sum of diagonal elements)
   - Determinant calculation (via PLU decomposition)
   - Invertibility checking
+  - Matrix inversion (general n×n matrices via PLU decomposition)
   - Matrix norms (Frobenius, 1-norm, infinity norm)
   - Specialized operations for small matrices: closed-form determinants and inverses for 2x2, 3x3, and 4x4 `ConstMatrix`
 - **Matrix Construction**:
@@ -39,7 +40,7 @@ A high-performance, generic matrix library for Rust with support for real, integ
   - `MatrixError` for dimension/index errors
 - **Memory Efficient**: Optimized implementations with in-place mutations where possible
 - **Type Safe**: Compile-time dimension checking with `ConstMatrix<T, R, C>` const generics; runtime dimension checking with `Matrix<T>`
-- **Comprehensive Test Suite**: 330+ tests covering all operations for both `Matrix` and `ConstMatrix`
+- **Comprehensive Test Suite**: 359 tests covering all operations for both `Matrix` and `ConstMatrix`
 - **Numerical Stability**: PLU decomposition with partial pivoting for robust computations
 
 ## Installation
@@ -103,9 +104,11 @@ let product = &a * &b;
 let scaled1 = &a * 2.0;
 let scaled2 = 2.0 * &a;  // Commutative!
 
-// Matrix exponentiation
-let a_squared = a.pow(2);  // A^2
-let a_cubed = a.pow(3);    // A^3
+// Matrix exponentiation (positive and negative exponents)
+let a_squared = a.pow(2);   // A^2
+let a_cubed = a.pow(3);     // A^3
+let a_inv = a.pow(-1);      // A^(-1) - matrix inverse
+let a_inv_sq = a.pow(-2);   // A^(-2) = (A^(-1))^2
 ```
 
 ### Working with Different Types
@@ -204,6 +207,60 @@ let invertible_singular = singular.is_invertible();  // false
 // Checked variants (no panic on non-square)
 let det_checked = m.try_determinant().unwrap();  // Ok(-2.0)
 ```
+
+### Matrix Inversion
+
+Spectralize provides general matrix inversion for n×n matrices using PLU decomposition:
+
+```rust
+use spectralize::Matrix;
+
+let a = Matrix::new(2, 2, vec![2.0, 1.0, 1.0, 2.0]);
+
+// Basic inversion
+let a_inv = a.inverse();
+
+// Verify: A * A^(-1) = I
+let identity = &a * &a_inv;
+let expected = Matrix::identity(2, 2);
+assert!(identity.approx_eq(&expected, 1e-10));
+
+// Checked inversion (returns Result)
+let a_inv_checked = a.try_inverse().unwrap();
+
+// Custom tolerance for near-singular matrices
+let nearly_singular = Matrix::new(2, 2, vec![1.0, 1.0, 1.0, 1.0 + 1e-10]);
+
+// Strict tolerance: treats it as invertible
+let inv1 = nearly_singular.try_inverse_with_tol(1e-12);
+assert!(inv1.is_ok());
+
+// Loose tolerance: treats it as singular
+let inv2 = nearly_singular.try_inverse_with_tol(1e-8);
+assert!(inv2.is_err());
+
+// Singular matrices return errors
+let singular = Matrix::new(2, 2, vec![1.0, 2.0, 2.0, 4.0]);
+assert!(singular.try_inverse().is_err());  // MatrixError::DimensionMismatch
+```
+
+**Available Methods:**
+- `inverse()` - Panics if matrix is not square or not invertible
+- `try_inverse()` - Returns `Result<Matrix<T>, MatrixError>`
+- `inverse_with_tol(tolerance)` - Custom tolerance for floating-point types
+- `try_inverse_with_tol(tolerance)` - Checked version with custom tolerance
+
+**Properties Verified:**
+- A · A⁻¹ = I (identity)
+- A⁻¹ · A = I
+- det(A⁻¹) = 1/det(A)
+- (A⁻¹)⁻¹ = A
+
+**Type Support:**
+- **Floating-point types** (f32, f64, Complex): Full support with tolerance-based singularity detection
+- **Integer types**: Not supported (division required for inverse computation)
+
+**Algorithm:** Uses PLU decomposition with identity-column solving. For each column i of the identity matrix, solves A·x = eᵢ to obtain column i of A⁻¹. Efficient O(n³) implementation with reused working vectors.
 
 ### Cross Product
 
@@ -573,7 +630,8 @@ let perm = Matrix::<f64>::perm(4, 4, vec![2, 4, 3, 1]);
 - `*` - Matrix multiplication or scalar multiplication
 
 #### Advanced Operations
-- `pow(n)` - Matrix exponentiation (A^n)
+- `pow(n)` - Matrix exponentiation (A^n for n≥0, A^(-n) for invertible matrices)
+- `try_pow(n)` - Checked matrix exponentiation (returns Result)
 - `dot(other)` - Dot product
 - `outer(other)` - Outer product
 - `cross(other)` - Cross product (3D vectors only, returns Result)
@@ -583,6 +641,10 @@ let perm = Matrix::<f64>::perm(4, 4, vec![2, 4, 3, 1]);
 - `determinant_with_tol(tolerance)` - Determinant with custom singularity tolerance for floating-point types
 - `is_invertible()` - Check if matrix is invertible (non-singular)
 - `is_invertible_with_tol(tolerance)` - Invertibility check with custom tolerance for floating-point types
+- `inverse()` - Matrix inverse via PLU decomposition (square invertible matrices only)
+- `try_inverse()` - Checked matrix inversion (returns Result)
+- `inverse_with_tol(tolerance)` - Matrix inverse with custom tolerance for floating-point types
+- `try_inverse_with_tol(tolerance)` - Checked matrix inversion with custom tolerance
 - `norm_fro()` - Frobenius norm (Euclidean norm): ||A||_F = sqrt(Σ|a_ij|²)
 - `norm_one()` - 1-norm (maximum absolute column sum): ||A||_1 = max_j Σ_i |a_ij|
 - `norm_inf()` - Infinity norm (maximum absolute row sum): ||A||_∞ = max_i Σ_j |a_ij|
@@ -602,6 +664,8 @@ Run the included examples to see various operations in action:
 cargo run --example float_matrices      # Float operations (f32, f64)
 cargo run --example integer_matrices    # Integer operations (i32, i64)
 cargo run --example complex_matrices    # Complex number operations
+cargo run --example inverse_demo        # Matrix inversion examples
+cargo run --example pow_negative_demo   # Negative exponents in pow()
 
 # ConstMatrix examples (compile-time dimensions)
 cargo run --example const_matrix_demo        # Basic ConstMatrix operations
@@ -611,9 +675,10 @@ cargo run --example const_matrix_arithmetic  # Arithmetic with compile-time chec
 Each example demonstrates:
 - Matrix creation and manipulation
 - Arithmetic operations (addition, multiplication, etc.)
-- Advanced operations (determinants, norms, cross products)
+- Advanced operations (determinants, norms, cross products, inversion)
 - Type-specific features and considerations
 - Compile-time dimension safety (ConstMatrix examples)
+- Negative exponent support in pow() for invertible matrices
 
 ## Design Philosophy
 
@@ -668,14 +733,12 @@ examples/
 
 ## Future Plans
 
-- General matrix inversion for `Matrix<T>` (for `A^-n` support in `pow`)
-  - Note: 2x2, 3x3, and 4x4 inverses are available for `ConstMatrix`
 - Additional decompositions:
   - QR decomposition
   - Cholesky decomposition
   - Singular Value Decomposition (SVD)
 - Eigenvalue and eigenvector computation
-- Linear system solving using existing PLU decomposition
+- Linear system solving API (infrastructure exists via PLU decomposition)
 - Purpose-built graphics rendering APIs
 - Sparse matrix support
 - Iterative methods for large systems

@@ -308,17 +308,6 @@ where
     }
 }
 
-impl<T> Matrix<T>
-where
-    T: MatrixElement + std::fmt::Debug + Mul<Output = T> + Add<Output = T>,
-{
-    pub fn try_pow(&self, n: u32) -> Result<Matrix<T>, MatrixError> {
-        if self.rows != self.cols {
-            return Err(MatrixError::DimensionMismatch);
-        }
-        Ok(self.pow(n))
-    }
-}
 
 impl<T> Matrix<T>
 where

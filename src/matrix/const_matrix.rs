@@ -409,33 +409,46 @@ impl<T: MatrixElement + std::fmt::Debug, const R: usize, const C: usize> ConstMa
     /// assert_eq!(a_squared.get(0, 0), 7);  // Result of A * A
     /// assert_eq!(a_squared.get(1, 1), 22);
     /// ```
-    pub fn pow(&self, n: u32) -> Self
+    pub fn pow(&self, n: i32) -> Self
     where
         T: Mul<Output = T> + Add<Output = T>,
     {
-        match n {
-            0 => {
-                // A^0 = Identity matrix
-                Self::identity()
-            }
-            1 => {
-                // A^1 = A
-                self.clone()
-            }
-            _ => {
-                // Binary exponentiation: O(log n) instead of O(n)
-                // Convert to dynamic matrix for the computation to avoid const generic issues
-                let dyn_self: Matrix<T> = self.clone().into();
-                let dyn_result = dyn_self.pow(n);
+        // Const matrices only support non-negative exponents
+        // (negative exponents would require types that support inversion)
+        assert!(
+            n >= 0,
+            "ConstMatrix pow only supports non-negative exponents. \
+             Use dynamic Matrix with f32/f64 for negative exponents."
+        );
 
-                // Convert back - this should always succeed for same dimensions
+        let n_u32 = n as u32;
+        match n_u32 {
+            0 => Self::identity(),
+            1 => self.clone(),
+            _ => {
+                // Convert to dynamic matrix, use its pow, convert back
+                // This avoids implementing binary exponentiation twice
+                let dyn_self: Matrix<T> = self.clone().into();
+                // Use binary exponentiation directly to avoid calling inverse-requiring pow
+                let mut result = Matrix::identity(R, C);
+                let mut base = dyn_self;
+                let mut exp = n_u32;
+
+                while exp > 0 {
+                    if exp % 2 == 1 {
+                        result = result * &base;
+                    }
+                    base = &base * &base;
+                    exp /= 2;
+                }
+
+                // Convert back to ConstMatrix
                 let mut data = Vec::with_capacity(R * C);
                 for row in 0..R {
                     for col in 0..C {
-                        data.push(dyn_result.get(row, col));
+                        data.push(result.get(row, col));
                     }
                 }
-
                 Self { data }
             }
         }

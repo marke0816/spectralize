@@ -1,4 +1,4 @@
-use super::{Matrix, MatrixElement, NanCheck, ToleranceOps};
+use super::{Matrix, MatrixElement, MatrixError, NanCheck, ToleranceOps};
 use crate::matrix::norm::Abs;
 use std::ops::{Add, Div, Mul, Neg, Sub};
 
@@ -148,6 +148,9 @@ where
 struct PLUDecomposition<T: MatrixElement + std::fmt::Debug + ToleranceOps> {
     /// Combined L and U matrices in packed form
     lu: Matrix<T>,
+    /// Permutation vector: perm[i] indicates the original row index that is now at row i
+    /// This tracks all row swaps performed during decomposition
+    perm: Vec<usize>,
     /// Number of row swaps performed (determines sign of determinant)
     row_swaps: usize,
     /// Whether the matrix is singular (has a zero/negligible pivot)
@@ -430,6 +433,9 @@ where
         let mut row_swaps = 0;
         let mut is_singular = false;
 
+        // Initialize permutation vector: perm[i] = i means row i is in its original position
+        let mut perm: Vec<usize> = (0..n).collect();
+
         // Gaussian elimination with partial pivoting and tolerance-aware checks
         // Use direct indexing to avoid repeated bounds checks and clones in hot loops.
         let cols = lu.cols;
@@ -477,6 +483,7 @@ where
                 for j in 0..n {
                     data.swap(k * cols + j, pivot_row * cols + j);
                 }
+                perm.swap(k, pivot_row);
                 row_swaps += 1;
             }
 
@@ -506,6 +513,7 @@ where
 
         PLUDecomposition {
             lu,
+            perm,
             row_swaps,
             is_singular,
         }
@@ -564,6 +572,54 @@ where
         } else {
             product
         }
+    }
+
+    /// Solve a linear system Ax = b using the PLU decomposition.
+    ///
+    /// Given the PLU decomposition PA = LU, we solve:
+    /// 1. Apply permutation: b' = Pb
+    /// 2. Forward substitution: Ly = b'
+    /// 3. Backward substitution: Ux = y
+    ///
+    /// This method uses preallocated working vectors to avoid allocations.
+    fn solve(&self, b: &[T], work_perm: &mut Vec<T>, work_y: &mut Vec<T>) -> Vec<T>
+    where
+        T: Add<Output = T>,
+    {
+        let n = self.lu.rows();
+        debug_assert_eq!(b.len(), n, "Right-hand side length must match matrix dimension");
+        debug_assert_eq!(work_perm.len(), n, "Working vector work_perm must have size n");
+        debug_assert_eq!(work_y.len(), n, "Working vector work_y must have size n");
+
+        // Step 1: Apply permutation to get b' = Pb
+        // perm[i] tells us which original row is now at position i
+        for i in 0..n {
+            work_perm[i] = b[self.perm[i]].clone();
+        }
+
+        // Step 2: Forward substitution to solve Ly = b'
+        // L is lower triangular with implicit 1s on diagonal
+        // L is stored in the lower triangle of lu (below diagonal)
+        for i in 0..n {
+            let mut sum = work_perm[i].clone();
+            for j in 0..i {
+                sum = sum - (self.lu.get(i, j) * work_y[j].clone());
+            }
+            work_y[i] = sum; // Since L[i,i] = 1, no division needed
+        }
+
+        // Step 3: Backward substitution to solve Ux = y
+        // U is upper triangular stored on and above the diagonal of lu
+        let mut x = vec![T::zero(); n];
+        for i in (0..n).rev() {
+            let mut sum = work_y[i].clone();
+            for j in (i + 1)..n {
+                sum = sum - (self.lu.get(i, j) * x[j].clone());
+            }
+            x[i] = sum / self.lu.get(i, i); // Divide by diagonal element
+        }
+
+        x
     }
 }
 
@@ -818,5 +874,361 @@ where
 
         let decomp = PLUDecomposition::decompose(self, Some(tolerance));
         decomp.determinant()
+    }
+
+    /// Compute the inverse of a square matrix using default tolerance.
+    ///
+    /// The inverse is computed using PLU decomposition: for each column i of the
+    /// identity matrix, solve A·x = e_i to obtain column i of A^(-1).
+    ///
+    /// ## Algorithm
+    ///
+    /// 1. Compute PLU decomposition once: PA = LU
+    /// 2. For each standard basis vector e_i:
+    ///    - Solve Ly = Pe_i (forward substitution)
+    ///    - Solve Ux = y (backward substitution)
+    ///    - Store x as column i of A^(-1)
+    ///
+    /// ## Performance
+    ///
+    /// - PLU decomposition: O(n³) time, O(n²) space
+    /// - Solving n systems: O(n³) time total (O(n²) per column)
+    /// - Total: O(n³) time, O(n²) space
+    ///
+    /// This implementation reuses working vectors to avoid allocations in the inner loop.
+    ///
+    /// ## Tolerance Behavior
+    ///
+    /// - **Exact types (integers)**: Exact inverse computation, returns error if not invertible
+    /// - **Floating-point**: Uses default tolerance ε = n * ε_machine * ||A||_∞
+    ///   - Returns error if any pivot ≤ ε (numerically singular)
+    ///
+    /// # Panics
+    ///
+    /// Panics if the matrix is not square or is singular (non-invertible).
+    /// Use `try_inverse()` for error handling instead of panics.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use spectralize::matrix::Matrix;
+    ///
+    /// let a = Matrix::new(2, 2, vec![1.0, 2.0, 3.0, 4.0]);
+    /// let a_inv = a.inverse();
+    ///
+    /// // Verify: A * A^(-1) ≈ I
+    /// let identity = &a * &a_inv;
+    /// let expected = Matrix::identity(2, 2);
+    /// assert!(identity.approx_eq(&expected, 1e-10));
+    /// ```
+    pub fn inverse(&self) -> Matrix<T>
+    where
+        T: ToleranceOps
+            + PivotOrd
+            + Div<Output = T>
+            + Mul<Output = T>
+            + Sub<Output = T>
+            + Add<Output = T>
+            + Clone
+            + Abs<Output = T::Abs>,
+        T::Abs: MatrixElement + Add<Output = T::Abs> + Mul<Output = T::Abs> + PartialOrd + NanCheck,
+    {
+        self.try_inverse()
+            .expect("Matrix must be square and invertible")
+    }
+
+    /// Compute the inverse of a square matrix using default tolerance.
+    ///
+    /// This is the checked version of `inverse()` that returns a `Result` instead of panicking.
+    ///
+    /// # Errors
+    ///
+    /// Returns `MatrixError::DimensionMismatch` if:
+    /// - The matrix is not square
+    /// - The matrix is singular (determinant is zero or numerically negligible)
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use spectralize::matrix::{Matrix, MatrixError};
+    ///
+    /// let a = Matrix::new(2, 2, vec![1.0, 2.0, 3.0, 4.0]);
+    /// let a_inv = a.try_inverse().unwrap();
+    ///
+    /// let singular = Matrix::new(2, 2, vec![1.0, 2.0, 2.0, 4.0]);
+    /// assert_eq!(singular.try_inverse().unwrap_err(), MatrixError::DimensionMismatch);
+    ///
+    /// let rect = Matrix::new(2, 3, vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0]);
+    /// assert_eq!(rect.try_inverse().unwrap_err(), MatrixError::DimensionMismatch);
+    /// ```
+    pub fn try_inverse(&self) -> Result<Matrix<T>, MatrixError>
+    where
+        T: ToleranceOps
+            + PivotOrd
+            + Div<Output = T>
+            + Mul<Output = T>
+            + Sub<Output = T>
+            + Add<Output = T>
+            + Clone
+            + Abs<Output = T::Abs>,
+        T::Abs: MatrixElement + Add<Output = T::Abs> + Mul<Output = T::Abs> + PartialOrd + NanCheck,
+    {
+        // Check square
+        if self.rows != self.cols {
+            return Err(MatrixError::DimensionMismatch);
+        }
+
+        // Compute PLU decomposition with default tolerance
+        let decomp = PLUDecomposition::decompose(self, None);
+
+        // Check invertibility
+        if !decomp.is_invertible() {
+            return Err(MatrixError::DimensionMismatch);
+        }
+
+        let n = self.rows;
+
+        // Preallocate result matrix and working vectors (avoid allocations in loop)
+        let mut inverse_data = Vec::with_capacity(n * n);
+        let mut work_perm = vec![T::zero(); n];
+        let mut work_y = vec![T::zero(); n];
+
+        // Solve for each column of the inverse
+        // For column i, solve A·x = e_i where e_i is the i-th standard basis vector
+        for i in 0..n {
+            // Create standard basis vector e_i (all zeros except 1 at position i)
+            let mut e_i = vec![T::zero(); n];
+            e_i[i] = T::one();
+
+            // Solve A·x = e_i using PLU decomposition
+            let col = decomp.solve(&e_i, &mut work_perm, &mut work_y);
+
+            // Append this column to the inverse matrix data
+            inverse_data.extend(col);
+        }
+
+        // Transpose the result since we built it column-by-column but need row-major
+        let inverse_col_major = Matrix::new(n, n, inverse_data);
+        Ok(inverse_col_major.transpose())
+    }
+
+    /// Compute the inverse of a square matrix using a custom tolerance.
+    ///
+    /// This variant allows you to specify your own tolerance for singularity detection.
+    /// Use this when the default tolerance is not appropriate for your application.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the matrix is not square or is singular under the specified tolerance.
+    /// Use `try_inverse_with_tol()` for error handling instead of panics.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use spectralize::matrix::Matrix;
+    ///
+    /// let a = Matrix::new(2, 2, vec![1.0, 2.0, 3.0, 4.0]);
+    /// let a_inv = a.inverse_with_tol(1e-10);
+    /// ```
+    pub fn inverse_with_tol(&self, tolerance: T::Abs) -> Matrix<T>
+    where
+        T: ToleranceOps
+            + PivotOrd
+            + Div<Output = T>
+            + Mul<Output = T>
+            + Sub<Output = T>
+            + Add<Output = T>
+            + Clone
+            + Abs<Output = T::Abs>,
+        T::Abs: MatrixElement + Add<Output = T::Abs> + Mul<Output = T::Abs> + PartialOrd + NanCheck,
+    {
+        self.try_inverse_with_tol(tolerance)
+            .expect("Matrix must be square and invertible")
+    }
+
+    /// Compute the inverse of a square matrix using a custom tolerance.
+    ///
+    /// This is the checked version of `inverse_with_tol()` that returns a `Result`.
+    ///
+    /// # Errors
+    ///
+    /// Returns `MatrixError::DimensionMismatch` if:
+    /// - The matrix is not square
+    /// - The matrix is singular under the specified tolerance
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use spectralize::matrix::{Matrix, MatrixError};
+    ///
+    /// let a = Matrix::new(2, 2, vec![1.0, 2.0, 3.0, 4.0]);
+    /// let a_inv = a.try_inverse_with_tol(1e-10).unwrap();
+    ///
+    /// let nearly_singular = Matrix::new(2, 2, vec![1.0, 1.0, 1.0, 1.0 + 1e-10]);
+    /// // With strict tolerance, accepted as invertible
+    /// assert!(nearly_singular.try_inverse_with_tol(1e-12).is_ok());
+    /// // With loose tolerance, rejected as singular
+    /// assert!(nearly_singular.try_inverse_with_tol(1e-8).is_err());
+    /// ```
+    pub fn try_inverse_with_tol(&self, tolerance: T::Abs) -> Result<Matrix<T>, MatrixError>
+    where
+        T: ToleranceOps
+            + PivotOrd
+            + Div<Output = T>
+            + Mul<Output = T>
+            + Sub<Output = T>
+            + Add<Output = T>
+            + Clone
+            + Abs<Output = T::Abs>,
+        T::Abs: MatrixElement + Add<Output = T::Abs> + Mul<Output = T::Abs> + PartialOrd + NanCheck,
+    {
+        // Check square
+        if self.rows != self.cols {
+            return Err(MatrixError::DimensionMismatch);
+        }
+
+        // Compute PLU decomposition with custom tolerance
+        let decomp = PLUDecomposition::decompose(self, Some(tolerance));
+
+        // Check invertibility
+        if !decomp.is_invertible() {
+            return Err(MatrixError::DimensionMismatch);
+        }
+
+        let n = self.rows;
+
+        // Preallocate result matrix and working vectors (avoid allocations in loop)
+        let mut inverse_data = Vec::with_capacity(n * n);
+        let mut work_perm = vec![T::zero(); n];
+        let mut work_y = vec![T::zero(); n];
+
+        // Solve for each column of the inverse
+        for i in 0..n {
+            // Create standard basis vector e_i
+            let mut e_i = vec![T::zero(); n];
+            e_i[i] = T::one();
+
+            // Solve A·x = e_i
+            let col = decomp.solve(&e_i, &mut work_perm, &mut work_y);
+
+            // Append this column to the inverse matrix data
+            inverse_data.extend(col);
+        }
+
+        // Transpose the result since we built it column-by-column but need row-major
+        let inverse_col_major = Matrix::new(n, n, inverse_data);
+        Ok(inverse_col_major.transpose())
+    }
+
+    /// Matrix exponentiation with support for negative exponents.
+    ///
+    /// This specialized implementation for types that support matrix inversion
+    /// extends matrix exponentiation to handle negative exponents:
+    /// - A^n = A * A * ... * A (n times) for n > 0
+    /// - A^0 = I (identity matrix)
+    /// - A^(-n) = (A^(-1))^n for n < 0
+    ///
+    /// # Panics
+    /// - Panics if the matrix is not square
+    /// - Panics if n < 0 and the matrix is not invertible
+    ///
+    /// # Examples
+    /// ```
+    /// use spectralize::matrix::Matrix;
+    ///
+    /// let a = Matrix::new(2, 2, vec![2.0, 0.0, 0.0, 3.0]);
+    ///
+    /// // Positive exponent
+    /// let a_squared = a.pow(2);
+    ///
+    /// // Negative exponent
+    /// let a_inv = a.pow(-1);
+    /// // Equivalent to: a.inverse()
+    ///
+    /// let a_inv_squared = a.pow(-2);
+    /// // Equivalent to: a.inverse().pow(2)
+    /// ```
+    pub fn pow(&self, n: i32) -> Matrix<T>
+    where
+        T: Mul<Output = T> + Add<Output = T> + ToleranceOps + PivotOrd + Div<Output = T> + Sub<Output = T> + Abs<Output = T::Abs>,
+        T::Abs: MatrixElement + Add<Output = T::Abs> + Mul<Output = T::Abs> + PartialOrd + NanCheck,
+    {
+        assert_eq!(
+            self.rows, self.cols,
+            "Matrix must be square for exponentiation"
+        );
+
+        // Handle negative exponents: A^(-n) = (A^(-1))^n
+        if n < 0 {
+            let inv = self.inverse();
+            let abs_n = n.unsigned_abs() as i32;
+            return inv.pow(abs_n);
+        }
+
+        // For non-negative exponents, delegate to basic pow implementation
+        // The basic pow in arithmetic.rs handles non-negative i32
+        // by converting to u32 and using binary exponentiation
+        // We can't call it directly due to method resolution, so we'll
+        // inline the logic here to avoid recursion issues
+        let n_u32 = n as u32;
+        match n_u32 {
+            0 => Matrix::identity(self.rows, self.cols),
+            1 => self.clone(),
+            _ => {
+                let mut result = Matrix::identity(self.rows, self.cols);
+                let mut base = self.clone();
+                let mut exp = n_u32;
+
+                while exp > 0 {
+                    if exp % 2 == 1 {
+                        result = result * &base;
+                    }
+                    base = &base * &base;
+                    exp /= 2;
+                }
+
+                result
+            }
+        }
+    }
+
+    /// Checked matrix exponentiation with support for negative exponents.
+    ///
+    /// This is the non-panicking version of `pow` that returns a `Result`.
+    ///
+    /// # Errors
+    /// - Returns `MatrixError::DimensionMismatch` if the matrix is not square
+    /// - Returns `MatrixError::DimensionMismatch` if n < 0 and the matrix is not invertible
+    ///
+    /// # Examples
+    /// ```
+    /// use spectralize::matrix::{Matrix, MatrixError};
+    ///
+    /// let a = Matrix::new(2, 2, vec![2.0, 0.0, 0.0, 3.0]);
+    ///
+    /// // Negative exponent on invertible matrix: success
+    /// let a_inv_squared = a.try_pow(-2).unwrap();
+    ///
+    /// // Negative exponent on singular matrix: error
+    /// let singular = Matrix::new(2, 2, vec![1.0, 2.0, 2.0, 4.0]);
+    /// assert_eq!(singular.try_pow(-1).unwrap_err(), MatrixError::DimensionMismatch);
+    /// ```
+    pub fn try_pow(&self, n: i32) -> Result<Matrix<T>, MatrixError>
+    where
+        T: Mul<Output = T> + Add<Output = T> + ToleranceOps + PivotOrd + Div<Output = T> + Sub<Output = T> + Abs<Output = T::Abs>,
+        T::Abs: MatrixElement + Add<Output = T::Abs> + Mul<Output = T::Abs> + PartialOrd + NanCheck,
+    {
+        if self.rows != self.cols {
+            return Err(MatrixError::DimensionMismatch);
+        }
+
+        // Handle negative exponents using try_inverse
+        if n < 0 {
+            let inv = self.try_inverse()?;
+            let abs_n = n.unsigned_abs();
+            return Ok(inv.pow(abs_n as i32));
+        }
+
+        Ok(self.pow(n))
     }
 }
