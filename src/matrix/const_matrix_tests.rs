@@ -915,6 +915,13 @@ fn inverse_2x2_singular_returns_none() {
     assert!(m.inverse().is_none()); // Singular matrix
 }
 
+#[test]
+fn inverse_2x2_scaled_tolerance_rejects_ill_conditioned() {
+    // Large scale with tiny determinant: numerically singular under scaled tolerance.
+    let m: ConstMatrix<f64, 2, 2> = ConstMatrix::new(vec![1e12, 0.0, 0.0, 1e-22]);
+    assert!(m.inverse().is_none());
+}
+
 // 3x3 determinant tests
 #[test]
 fn det_3x3_basic() {
@@ -986,6 +993,16 @@ fn inverse_3x3_singular_returns_none() {
         3.0, 6.0, 9.0,
     ]);
     assert!(m.inverse().is_none()); // Singular matrix
+}
+
+#[test]
+fn inverse_3x3_scaled_tolerance_rejects_ill_conditioned() {
+    let m: ConstMatrix<f64, 3, 3> = ConstMatrix::new(vec![
+        1e12, 0.0, 0.0,
+        0.0, 1.0, 0.0,
+        0.0, 0.0, 1e-22,
+    ]);
+    assert!(m.inverse().is_none());
 }
 
 #[test]
@@ -1093,6 +1110,17 @@ fn inverse_4x4_full_matrix() {
     // Verify M^-1 * M ≈ I
     let identity2 = &inv * &m;
     assert!(identity2.approx_eq(&ConstMatrix::identity(), 1e-9));
+}
+
+#[test]
+fn inverse_4x4_scaled_tolerance_rejects_ill_conditioned() {
+    let m: ConstMatrix<f64, 4, 4> = ConstMatrix::new(vec![
+        1e12, 0.0, 0.0, 0.0,
+        0.0, 1.0, 0.0, 0.0,
+        0.0, 0.0, 1.0, 0.0,
+        0.0, 0.0, 0.0, 1e-22,
+    ]);
+    assert!(m.inverse().is_none());
 }
 
 #[test]

@@ -582,7 +582,7 @@ where
     /// 3. Backward substitution: Ux = y
     ///
     /// This method uses preallocated working vectors to avoid allocations.
-    fn solve(&self, b: &[T], work_perm: &mut Vec<T>, work_y: &mut Vec<T>) -> Vec<T>
+    fn solve(&self, b: &[T], work_perm: &mut [T], work_y: &mut [T], x: &mut [T])
     where
         T: Add<Output = T>,
     {
@@ -590,6 +590,7 @@ where
         debug_assert_eq!(b.len(), n, "Right-hand side length must match matrix dimension");
         debug_assert_eq!(work_perm.len(), n, "Working vector work_perm must have size n");
         debug_assert_eq!(work_y.len(), n, "Working vector work_y must have size n");
+        debug_assert_eq!(x.len(), n, "Working vector x must have size n");
 
         // Step 1: Apply permutation to get b' = Pb
         // perm[i] tells us which original row is now at position i
@@ -600,26 +601,25 @@ where
         // Step 2: Forward substitution to solve Ly = b'
         // L is lower triangular with implicit 1s on diagonal
         // L is stored in the lower triangle of lu (below diagonal)
+        let cols = self.lu.cols;
+        let data = &self.lu.data;
         for i in 0..n {
             let mut sum = work_perm[i].clone();
             for j in 0..i {
-                sum = sum - (self.lu.get(i, j) * work_y[j].clone());
+                sum = sum - (data[i * cols + j].clone() * work_y[j].clone());
             }
             work_y[i] = sum; // Since L[i,i] = 1, no division needed
         }
 
         // Step 3: Backward substitution to solve Ux = y
         // U is upper triangular stored on and above the diagonal of lu
-        let mut x = vec![T::zero(); n];
         for i in (0..n).rev() {
             let mut sum = work_y[i].clone();
             for j in (i + 1)..n {
-                sum = sum - (self.lu.get(i, j) * x[j].clone());
+                sum = sum - (data[i * cols + j].clone() * x[j].clone());
             }
-            x[i] = sum / self.lu.get(i, i); // Divide by diagonal element
+            x[i] = sum / data[i * cols + i].clone(); // Divide by diagonal element
         }
-
-        x
     }
 }
 
@@ -989,27 +989,31 @@ where
         let n = self.rows;
 
         // Preallocate result matrix and working vectors (avoid allocations in loop)
-        let mut inverse_data = Vec::with_capacity(n * n);
+        let mut inverse_data = vec![T::zero(); n * n];
         let mut work_perm = vec![T::zero(); n];
         let mut work_y = vec![T::zero(); n];
+        let mut work_x = vec![T::zero(); n];
+        let mut e_i = vec![T::zero(); n];
 
         // Solve for each column of the inverse
         // For column i, solve A·x = e_i where e_i is the i-th standard basis vector
         for i in 0..n {
-            // Create standard basis vector e_i (all zeros except 1 at position i)
-            let mut e_i = vec![T::zero(); n];
+            // Update standard basis vector in O(1)
+            if i > 0 {
+                e_i[i - 1] = T::zero();
+            }
             e_i[i] = T::one();
 
             // Solve A·x = e_i using PLU decomposition
-            let col = decomp.solve(&e_i, &mut work_perm, &mut work_y);
+            decomp.solve(&e_i, &mut work_perm, &mut work_y, &mut work_x);
 
-            // Append this column to the inverse matrix data
-            inverse_data.extend(col);
+            // Write column i into row-major inverse buffer
+            for row in 0..n {
+                inverse_data[row * n + i] = work_x[row].clone();
+            }
         }
 
-        // Transpose the result since we built it column-by-column but need row-major
-        let inverse_col_major = Matrix::new(n, n, inverse_data);
-        Ok(inverse_col_major.transpose())
+        Ok(Matrix::new(n, n, inverse_data))
     }
 
     /// Compute the inverse of a square matrix using a custom tolerance.
@@ -1098,26 +1102,30 @@ where
         let n = self.rows;
 
         // Preallocate result matrix and working vectors (avoid allocations in loop)
-        let mut inverse_data = Vec::with_capacity(n * n);
+        let mut inverse_data = vec![T::zero(); n * n];
         let mut work_perm = vec![T::zero(); n];
         let mut work_y = vec![T::zero(); n];
+        let mut work_x = vec![T::zero(); n];
+        let mut e_i = vec![T::zero(); n];
 
         // Solve for each column of the inverse
         for i in 0..n {
-            // Create standard basis vector e_i
-            let mut e_i = vec![T::zero(); n];
+            // Update standard basis vector in O(1)
+            if i > 0 {
+                e_i[i - 1] = T::zero();
+            }
             e_i[i] = T::one();
 
             // Solve A·x = e_i
-            let col = decomp.solve(&e_i, &mut work_perm, &mut work_y);
+            decomp.solve(&e_i, &mut work_perm, &mut work_y, &mut work_x);
 
-            // Append this column to the inverse matrix data
-            inverse_data.extend(col);
+            // Write column i into row-major inverse buffer
+            for row in 0..n {
+                inverse_data[row * n + i] = work_x[row].clone();
+            }
         }
 
-        // Transpose the result since we built it column-by-column but need row-major
-        let inverse_col_major = Matrix::new(n, n, inverse_data);
-        Ok(inverse_col_major.transpose())
+        Ok(Matrix::new(n, n, inverse_data))
     }
 
     /// Matrix exponentiation with support for negative exponents.
@@ -1161,8 +1169,8 @@ where
         // Handle negative exponents: A^(-n) = (A^(-1))^n
         if n < 0 {
             let inv = self.inverse();
-            let abs_n = n.unsigned_abs() as i32;
-            return inv.pow(abs_n);
+            let abs_n = n.unsigned_abs();
+            return inv.pow_u32(abs_n);
         }
 
         // For non-negative exponents, delegate to basic pow implementation
@@ -1170,26 +1178,7 @@ where
         // by converting to u32 and using binary exponentiation
         // We can't call it directly due to method resolution, so we'll
         // inline the logic here to avoid recursion issues
-        let n_u32 = n as u32;
-        match n_u32 {
-            0 => Matrix::identity(self.rows, self.cols),
-            1 => self.clone(),
-            _ => {
-                let mut result = Matrix::identity(self.rows, self.cols);
-                let mut base = self.clone();
-                let mut exp = n_u32;
-
-                while exp > 0 {
-                    if exp % 2 == 1 {
-                        result = result * &base;
-                    }
-                    base = &base * &base;
-                    exp /= 2;
-                }
-
-                result
-            }
-        }
+        self.pow_u32(n as u32)
     }
 
     /// Checked matrix exponentiation with support for negative exponents.
@@ -1226,9 +1215,34 @@ where
         if n < 0 {
             let inv = self.try_inverse()?;
             let abs_n = n.unsigned_abs();
-            return Ok(inv.pow(abs_n as i32));
+            return Ok(inv.pow_u32(abs_n));
         }
 
         Ok(self.pow(n))
+    }
+
+    fn pow_u32(&self, n: u32) -> Matrix<T>
+    where
+        T: Mul<Output = T> + Add<Output = T>,
+    {
+        match n {
+            0 => Matrix::identity(self.rows, self.cols),
+            1 => self.clone(),
+            _ => {
+                let mut result = Matrix::identity(self.rows, self.cols);
+                let mut base = self.clone();
+                let mut exp = n;
+
+                while exp > 0 {
+                    if exp % 2 == 1 {
+                        result = result * &base;
+                    }
+                    base = &base * &base;
+                    exp /= 2;
+                }
+
+                result
+            }
+        }
     }
 }

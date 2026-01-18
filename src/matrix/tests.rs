@@ -1104,6 +1104,20 @@ mod exponentiation_tests {
     }
 
     #[test]
+    fn test_pow_negative_min_i32_identity() {
+        let identity = Matrix::<f64>::identity(2, 2);
+        let result = identity.pow(i32::MIN);
+        assert!(result.approx_eq(&identity, 1e-10));
+    }
+
+    #[test]
+    fn test_try_pow_negative_min_i32_identity() {
+        let identity = Matrix::<f64>::identity(2, 2);
+        let result = identity.try_pow(i32::MIN).unwrap();
+        assert!(result.approx_eq(&identity, 1e-10));
+    }
+
+    #[test]
     fn test_pow_negative_identity() {
         // I^(-n) = I for any n
         let identity = Matrix::<f64>::identity(3, 3);

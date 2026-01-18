@@ -55,6 +55,35 @@ pub struct ConstMatrix<T: MatrixElement + std::fmt::Debug, const R: usize, const
     data: Vec<T>,
 }
 
+fn scaled_tolerance<T, const N: usize>(data: &[T]) -> T::Abs
+where
+    T: super::ToleranceOps,
+    T::Abs: MatrixElement + Add<Output = T::Abs> + Mul<Output = T::Abs> + PartialOrd,
+{
+    match T::epsilon() {
+        Some(eps) => {
+            let mut max_sum = T::Abs::zero();
+            for row in 0..N {
+                let mut sum = T::Abs::zero();
+                for col in 0..N {
+                    sum = sum + data[row * N + col].abs_val();
+                }
+                if sum > max_sum {
+                    max_sum = sum;
+                }
+            }
+
+            let mut n_factor = T::Abs::one();
+            for _ in 1..N {
+                n_factor = n_factor + T::Abs::one();
+            }
+
+            n_factor * (eps * max_sum)
+        }
+        None => T::Abs::zero(),
+    }
+}
+
 impl<T: MatrixElement + std::fmt::Debug, const R: usize, const C: usize> ConstMatrix<T, R, C> {
     /// Create a new matrix from a `Vec<T>`.
     ///
@@ -690,12 +719,12 @@ where
     pub fn inverse(&self) -> Option<ConstMatrix<T, 2, 2>>
     where
         T: Mul<Output = T> + Sub<Output = T> + Div<Output = T> + Neg<Output = T> + super::ToleranceOps,
-        T::Abs: PartialOrd + From<u8>,
+        T::Abs: MatrixElement + Add<Output = T::Abs> + Mul<Output = T::Abs> + PartialOrd,
     {
         let det = self.determinant();
 
         // Check if determinant is (near) zero
-        let tolerance = T::epsilon().unwrap_or(T::Abs::from(0u8));
+        let tolerance = scaled_tolerance::<T, 2>(&self.data);
         if det.abs_val() <= tolerance {
             return None;
         }
@@ -786,12 +815,12 @@ where
     pub fn inverse(&self) -> Option<ConstMatrix<T, 3, 3>>
     where
         T: Mul<Output = T> + Add<Output = T> + Sub<Output = T> + Div<Output = T> + Neg<Output = T> + super::ToleranceOps,
-        T::Abs: PartialOrd + From<u8>,
+        T::Abs: MatrixElement + Add<Output = T::Abs> + Mul<Output = T::Abs> + PartialOrd,
     {
         let det = self.determinant();
 
         // Check if determinant is (near) zero
-        let tolerance = T::epsilon().unwrap_or(T::Abs::from(0u8));
+        let tolerance = scaled_tolerance::<T, 3>(&self.data);
         if det.abs_val() <= tolerance {
             return None;
         }
@@ -924,12 +953,12 @@ where
     pub fn inverse(&self) -> Option<ConstMatrix<T, 4, 4>>
     where
         T: Mul<Output = T> + Add<Output = T> + Sub<Output = T> + Div<Output = T> + Neg<Output = T> + super::ToleranceOps,
-        T::Abs: PartialOrd + From<u8>,
+        T::Abs: MatrixElement + Add<Output = T::Abs> + Mul<Output = T::Abs> + PartialOrd,
     {
         let det = self.determinant();
 
         // Check if determinant is (near) zero
-        let tolerance = T::epsilon().unwrap_or(T::Abs::from(0u8));
+        let tolerance = scaled_tolerance::<T, 4>(&self.data);
         if det.abs_val() <= tolerance {
             return None;
         }
