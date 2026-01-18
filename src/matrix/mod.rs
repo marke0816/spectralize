@@ -5,10 +5,10 @@ pub mod decomposition;
 pub mod element;
 pub mod norm;
 
-pub use const_matrix::ConstMatrix;
-pub use element::{MatrixElement, NanCheck, ToleranceOps};
 use crate::matrix::decomposition::PivotOrd;
 use crate::matrix::norm::Abs;
+pub use const_matrix::ConstMatrix;
+pub use element::{MatrixElement, NanCheck, ToleranceOps};
 use std::ops::{Add, Div, Mul, Neg, Sub};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -153,7 +153,7 @@ impl<T: MatrixElement + std::fmt::Debug> Matrix<T> {
         Ok(())
     }
 
-    /// Iterator over a row
+    /// Borrowed slice over a row
     pub fn row(&self, row: usize) -> &[T] {
         assert!(row < self.rows, "Row index out of bounds");
         let start = row * self.cols;
@@ -307,7 +307,6 @@ where
         Ok(self.trace())
     }
 }
-
 
 impl<T> Matrix<T>
 where
