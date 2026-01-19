@@ -2,6 +2,237 @@ use super::{Matrix, MatrixElement, MatrixError, NanCheck, ToleranceOps};
 use crate::matrix::norm::Abs;
 use std::ops::{Add, Div, Mul, Neg, Sub};
 
+// ============================================================================
+// Closed-form determinant formulas for small matrices (fast paths)
+// ============================================================================
+
+/// Compute determinant of 1×1 matrix (trivial case).
+#[inline]
+fn determinant_1x1<T>(data: &[T]) -> T
+where
+    T: MatrixElement + Clone,
+{
+    data[0].clone()
+}
+
+/// Compute determinant of 2×2 matrix using closed-form formula.
+/// For [[a, b], [c, d]]: det = ad - bc
+#[inline]
+fn determinant_2x2<T>(data: &[T]) -> T
+where
+    T: MatrixElement + Mul<Output = T> + Sub<Output = T>,
+{
+    let a = &data[0];
+    let b = &data[1];
+    let c = &data[2];
+    let d = &data[3];
+
+    a.clone() * d.clone() - b.clone() * c.clone()
+}
+
+/// Compute determinant of 3×3 matrix using closed-form formula (rule of Sarrus).
+/// For [[a,b,c], [d,e,f], [g,h,i]]: det = a(ei-fh) - b(di-fg) + c(dh-eg)
+#[inline]
+fn determinant_3x3<T>(data: &[T]) -> T
+where
+    T: MatrixElement + Mul<Output = T> + Add<Output = T> + Sub<Output = T>,
+{
+    let a = &data[0];
+    let b = &data[1];
+    let c = &data[2];
+    let d = &data[3];
+    let e = &data[4];
+    let f = &data[5];
+    let g = &data[6];
+    let h = &data[7];
+    let i = &data[8];
+
+    let term1 = a.clone() * (e.clone() * i.clone() - f.clone() * h.clone());
+    let term2 = b.clone() * (d.clone() * i.clone() - f.clone() * g.clone());
+    let term3 = c.clone() * (d.clone() * h.clone() - e.clone() * g.clone());
+
+    term1 - term2 + term3
+}
+
+/// Compute determinant of 4×4 matrix using cofactor expansion along first row.
+#[inline]
+fn determinant_4x4<T>(data: &[T]) -> T
+where
+    T: MatrixElement + Mul<Output = T> + Add<Output = T> + Sub<Output = T> + Neg<Output = T>,
+{
+    // Cofactor expansion along first row
+    let mut det = T::zero();
+
+    for j in 0..4 {
+        let cofactor = cofactor_3x3_for_4x4(data, 0, j);
+        let sign = if j % 2 == 0 { T::one() } else { -T::one() };
+        det = det + (sign * data[j].clone() * cofactor);
+    }
+
+    det
+}
+
+/// Helper: compute 3×3 determinant of submatrix (excluding row i, col j) for 4×4 matrix.
+#[inline]
+fn cofactor_3x3_for_4x4<T>(data: &[T], exclude_row: usize, exclude_col: usize) -> T
+where
+    T: MatrixElement + Mul<Output = T> + Add<Output = T> + Sub<Output = T>,
+{
+    // Extract 3×3 submatrix (stack-allocated, no heap allocation)
+    let mut sub = [T::zero(), T::zero(), T::zero(), T::zero(), T::zero(), T::zero(), T::zero(), T::zero(), T::zero()];
+    let mut idx = 0;
+
+    for row in 0..4 {
+        if row == exclude_row {
+            continue;
+        }
+        for col in 0..4 {
+            if col == exclude_col {
+                continue;
+            }
+            sub[idx] = data[row * 4 + col].clone();
+            idx += 1;
+        }
+    }
+
+    // Compute 3×3 determinant using closed-form formula
+    determinant_3x3(&sub)
+}
+
+// ============================================================================
+// Closed-form inverse formulas for small matrices (fast paths)
+// ============================================================================
+
+/// Compute inverse of 1×1 matrix using closed-form formula.
+/// Returns None if the element is zero (or near-zero for floats).
+#[inline]
+fn inverse_1x1<T>(data: &[T], tolerance: T::Abs) -> Option<Vec<T>>
+where
+    T: MatrixElement + Div<Output = T> + ToleranceOps,
+    T::Abs: PartialOrd,
+{
+    let elem = &data[0];
+
+    // Check if element is (near) zero
+    if elem.abs_val() <= tolerance {
+        return None;
+    }
+
+    Some(vec![T::one() / elem.clone()])
+}
+
+/// Compute inverse of 2×2 matrix using closed-form formula.
+/// For [[a, b], [c, d]]: inv = (1/det) * [[d, -b], [-c, a]]
+/// Returns None if determinant is zero (or near-zero for floats).
+#[inline]
+fn inverse_2x2<T>(data: &[T], tolerance: T::Abs) -> Option<Vec<T>>
+where
+    T: MatrixElement + Mul<Output = T> + Sub<Output = T> + Div<Output = T> + Neg<Output = T> + ToleranceOps,
+    T::Abs: PartialOrd,
+{
+    let det = determinant_2x2(data);
+
+    // Check if determinant is (near) zero
+    if det.abs_val() <= tolerance {
+        return None;
+    }
+
+    let a = &data[0];
+    let b = &data[1];
+    let c = &data[2];
+    let d = &data[3];
+
+    // [[d, -b], [-c, a]] / det
+    Some(vec![
+        d.clone() / det.clone(),
+        -b.clone() / det.clone(),
+        -c.clone() / det.clone(),
+        a.clone() / det.clone(),
+    ])
+}
+
+/// Compute inverse of 3×3 matrix using adjugate matrix formula.
+/// Returns None if determinant is zero (or near-zero for floats).
+#[inline]
+fn inverse_3x3<T>(data: &[T], tolerance: T::Abs) -> Option<Vec<T>>
+where
+    T: MatrixElement + Mul<Output = T> + Add<Output = T> + Sub<Output = T> + Div<Output = T> + Neg<Output = T> + ToleranceOps,
+    T::Abs: PartialOrd,
+{
+    let det = determinant_3x3(data);
+
+    // Check if determinant is (near) zero
+    if det.abs_val() <= tolerance {
+        return None;
+    }
+
+    let a = &data[0];
+    let b = &data[1];
+    let c = &data[2];
+    let d = &data[3];
+    let e = &data[4];
+    let f = &data[5];
+    let g = &data[6];
+    let h = &data[7];
+    let i = &data[8];
+
+    // Compute cofactor matrix elements
+    let c00 = e.clone() * i.clone() - f.clone() * h.clone();
+    let c01 = -(d.clone() * i.clone() - f.clone() * g.clone());
+    let c02 = d.clone() * h.clone() - e.clone() * g.clone();
+
+    let c10 = -(b.clone() * i.clone() - c.clone() * h.clone());
+    let c11 = a.clone() * i.clone() - c.clone() * g.clone();
+    let c12 = -(a.clone() * h.clone() - b.clone() * g.clone());
+
+    let c20 = b.clone() * f.clone() - c.clone() * e.clone();
+    let c21 = -(a.clone() * f.clone() - c.clone() * d.clone());
+    let c22 = a.clone() * e.clone() - b.clone() * d.clone();
+
+    // Adjugate is transpose of cofactor matrix, divided by determinant
+    Some(vec![
+        c00 / det.clone(),
+        c10 / det.clone(),
+        c20 / det.clone(),
+        c01 / det.clone(),
+        c11 / det.clone(),
+        c21 / det.clone(),
+        c02 / det.clone(),
+        c12 / det.clone(),
+        c22 / det.clone(),
+    ])
+}
+
+/// Compute inverse of 4×4 matrix using adjugate matrix formula with cofactor expansion.
+/// Returns None if determinant is zero (or near-zero for floats).
+#[inline]
+fn inverse_4x4<T>(data: &[T], tolerance: T::Abs) -> Option<Vec<T>>
+where
+    T: MatrixElement + Mul<Output = T> + Add<Output = T> + Sub<Output = T> + Div<Output = T> + Neg<Output = T> + ToleranceOps,
+    T::Abs: PartialOrd,
+{
+    let det = determinant_4x4(data);
+
+    // Check if determinant is (near) zero
+    if det.abs_val() <= tolerance {
+        return None;
+    }
+
+    // Compute adjugate matrix (transpose of cofactor matrix), divided by determinant
+    // We iterate column-major to build the transpose directly
+    let mut result = Vec::with_capacity(16);
+
+    for j in 0..4 {
+        for i in 0..4 {
+            let cofactor = cofactor_3x3_for_4x4(data, i, j);
+            let sign = if (i + j) % 2 == 0 { T::one() } else { -T::one() };
+            result.push((sign * cofactor) / det.clone());
+        }
+    }
+
+    Some(result)
+}
+
 fn bareiss_determinant<T>(matrix: &Matrix<T>) -> T
 where
     T: MatrixElement
@@ -676,9 +907,40 @@ where
     /// ```
     pub fn is_invertible(&self) -> bool
     where
-        T: ToleranceOps + PivotOrd + Div<Output = T> + Mul<Output = T> + Sub<Output = T> + Clone + Abs<Output = T::Abs>,
+        T: ToleranceOps + PivotOrd + Div<Output = T> + Mul<Output = T> + Add<Output = T> + Sub<Output = T> + Neg<Output = T> + Clone + Abs<Output = T::Abs>,
         T::Abs: MatrixElement + Add<Output = T::Abs> + Mul<Output = T::Abs> + PartialOrd + NanCheck,
     {
+        let n = self.rows;
+
+        // Fast path: use closed-form determinant for small matrices (n ≤ 4)
+        if n <= 4 {
+            // Compute default tolerance for floating-point types
+            let tolerance = match T::epsilon() {
+                Some(eps) => {
+                    let scale = self.norm_inf();
+                    let n_abs = T::Abs::one();
+                    let mut n_factor = n_abs.clone();
+                    for _ in 1..n {
+                        n_factor = n_factor.clone() + n_abs.clone();
+                    }
+                    n_factor * (eps * scale)
+                }
+                None => T::Abs::zero(),
+            };
+
+            let det = match n {
+                0 => return true,
+                1 => determinant_1x1(&self.data),
+                2 => determinant_2x2(&self.data),
+                3 => determinant_3x3(&self.data),
+                4 => determinant_4x4(&self.data),
+                _ => unreachable!(),
+            };
+
+            return det.abs_val() > tolerance;
+        }
+
+        // Slow path: use Bareiss (integers) or PLU (floats) for n > 4
         if T::epsilon().is_none() {
             return bareiss_is_invertible(self);
         }
@@ -744,9 +1006,26 @@ where
     /// ```
     pub fn is_invertible_with_tol(&self, tolerance: T::Abs) -> bool
     where
-        T: ToleranceOps + PivotOrd + Div<Output = T> + Mul<Output = T> + Sub<Output = T> + Clone + Abs<Output = T::Abs>,
+        T: ToleranceOps + PivotOrd + Div<Output = T> + Mul<Output = T> + Add<Output = T> + Sub<Output = T> + Neg<Output = T> + Clone + Abs<Output = T::Abs>,
         T::Abs: MatrixElement + Add<Output = T::Abs> + Mul<Output = T::Abs> + PartialOrd + NanCheck,
     {
+        let n = self.rows;
+
+        // Fast path: use closed-form determinant for small matrices (n ≤ 4)
+        if n <= 4 {
+            let det = match n {
+                0 => return true,
+                1 => determinant_1x1(&self.data),
+                2 => determinant_2x2(&self.data),
+                3 => determinant_3x3(&self.data),
+                4 => determinant_4x4(&self.data),
+                _ => unreachable!(),
+            };
+
+            return det.abs_val() > tolerance;
+        }
+
+        // Slow path: use Bareiss (integers) or PLU (floats) for n > 4
         if T::epsilon().is_none() {
             return bareiss_is_invertible(self);
         }
@@ -805,10 +1084,36 @@ where
     /// ```
     pub fn determinant(&self) -> T
     where
-        T: ToleranceOps + PivotOrd + Div<Output = T> + Mul<Output = T> + Sub<Output = T> + Neg<Output = T> + Clone + Abs<Output = T::Abs>,
+        T: ToleranceOps + PivotOrd + Div<Output = T> + Mul<Output = T> + Add<Output = T> + Sub<Output = T> + Neg<Output = T> + Clone + Abs<Output = T::Abs>,
         T::Abs: MatrixElement + Add<Output = T::Abs> + Mul<Output = T::Abs> + PartialOrd + NanCheck,
     {
-        // For integer types, this uses Bareiss elimination; large values may overflow.
+        assert_eq!(
+            self.rows, self.cols,
+            "Determinant requires a square matrix"
+        );
+
+        let n = self.rows;
+
+        // Fast path: use closed-form formulas for small matrices (n ≤ 4)
+        if n <= 4 {
+            let det = match n {
+                0 => return T::one(),
+                1 => determinant_1x1(&self.data),
+                2 => determinant_2x2(&self.data),
+                3 => determinant_3x3(&self.data),
+                4 => determinant_4x4(&self.data),
+                _ => unreachable!(),
+            };
+
+            // For floating-point types, check for NaN and return 0 if found
+            if T::epsilon().is_some() && det.abs_val().is_nan() {
+                return T::zero();
+            }
+
+            return det;
+        }
+
+        // Slow path: use Bareiss (integers) or PLU (floats) for n > 4
         if T::epsilon().is_none() {
             return bareiss_determinant(self);
         }
@@ -865,9 +1170,40 @@ where
     /// ```
     pub fn determinant_with_tol(&self, tolerance: T::Abs) -> T
     where
-        T: ToleranceOps + PivotOrd + Div<Output = T> + Mul<Output = T> + Sub<Output = T> + Neg<Output = T> + Clone + Abs<Output = T::Abs>,
+        T: ToleranceOps + PivotOrd + Div<Output = T> + Mul<Output = T> + Add<Output = T> + Sub<Output = T> + Neg<Output = T> + Clone + Abs<Output = T::Abs>,
         T::Abs: MatrixElement + Add<Output = T::Abs> + Mul<Output = T::Abs> + PartialOrd + NanCheck,
     {
+        assert_eq!(
+            self.rows, self.cols,
+            "Determinant requires a square matrix"
+        );
+
+        let n = self.rows;
+
+        // Fast path: use closed-form formulas for small matrices (n ≤ 4)
+        // For floating-point types, check if determinant is below tolerance
+        if n <= 4 {
+            let det = match n {
+                0 => return T::one(),
+                1 => determinant_1x1(&self.data),
+                2 => determinant_2x2(&self.data),
+                3 => determinant_3x3(&self.data),
+                4 => determinant_4x4(&self.data),
+                _ => unreachable!(),
+            };
+
+            // For floating-point types, check for NaN first, then apply tolerance check
+            if T::epsilon().is_some() {
+                let det_abs = det.abs_val();
+                if det_abs.is_nan() || det_abs <= tolerance {
+                    return T::zero();
+                }
+            }
+
+            return det;
+        }
+
+        // Slow path: use Bareiss (integers) or PLU (floats) for n > 4
         if T::epsilon().is_none() {
             return bareiss_determinant(self);
         }
@@ -929,6 +1265,7 @@ where
             + Mul<Output = T>
             + Sub<Output = T>
             + Add<Output = T>
+            + Neg<Output = T>
             + Clone
             + Abs<Output = T::Abs>,
         T::Abs: MatrixElement + Add<Output = T::Abs> + Mul<Output = T::Abs> + PartialOrd + NanCheck,
@@ -969,6 +1306,7 @@ where
             + Mul<Output = T>
             + Sub<Output = T>
             + Add<Output = T>
+            + Neg<Output = T>
             + Clone
             + Abs<Output = T::Abs>,
         T::Abs: MatrixElement + Add<Output = T::Abs> + Mul<Output = T::Abs> + PartialOrd + NanCheck,
@@ -978,15 +1316,46 @@ where
             return Err(MatrixError::DimensionMismatch);
         }
 
-        // Compute PLU decomposition with default tolerance
+        let n = self.rows;
+
+        // Fast path: use closed-form formulas for small matrices (n ≤ 4)
+        if n <= 4 {
+            // Compute default tolerance for floating-point types
+            let tolerance = match T::epsilon() {
+                Some(eps) => {
+                    let scale = self.norm_inf();
+                    let n_abs = T::Abs::one();
+                    let mut n_factor = n_abs.clone();
+                    for _ in 1..n {
+                        n_factor = n_factor.clone() + n_abs.clone();
+                    }
+                    n_factor * (eps * scale)
+                }
+                None => T::Abs::zero(),
+            };
+
+            let inverse_data = match n {
+                0 => return Ok(Matrix::new(0, 0, vec![])),
+                1 => inverse_1x1(&self.data, tolerance),
+                2 => inverse_2x2(&self.data, tolerance),
+                3 => inverse_3x3(&self.data, tolerance),
+                4 => inverse_4x4(&self.data, tolerance),
+                _ => unreachable!(),
+            };
+
+            return match inverse_data {
+                Some(data) => Ok(Matrix::new(n, n, data)),
+                None => Err(MatrixError::DimensionMismatch),
+            };
+        }
+
+        // Slow path: use PLU decomposition for n > 4
         let decomp = PLUDecomposition::decompose(self, None);
 
         // Check invertibility
         if !decomp.is_invertible() {
             return Err(MatrixError::DimensionMismatch);
         }
-
-        let n = self.rows;
 
         // Preallocate result matrix and working vectors (avoid allocations in loop)
         let mut inverse_data = vec![T::zero(); n * n];
@@ -1042,6 +1411,7 @@ where
             + Mul<Output = T>
             + Sub<Output = T>
             + Add<Output = T>
+            + Neg<Output = T>
             + Clone
             + Abs<Output = T::Abs>,
         T::Abs: MatrixElement + Add<Output = T::Abs> + Mul<Output = T::Abs> + PartialOrd + NanCheck,
@@ -1082,6 +1452,7 @@ where
             + Mul<Output = T>
             + Sub<Output = T>
             + Add<Output = T>
+            + Neg<Output = T>
             + Clone
             + Abs<Output = T::Abs>,
         T::Abs: MatrixElement + Add<Output = T::Abs> + Mul<Output = T::Abs> + PartialOrd + NanCheck,
@@ -1091,15 +1462,32 @@ where
             return Err(MatrixError::DimensionMismatch);
         }
 
-        // Compute PLU decomposition with custom tolerance
+        let n = self.rows;
+
+        // Fast path: use closed-form formulas for small matrices (n ≤ 4)
+        if n <= 4 {
+            let inverse_data = match n {
+                0 => return Ok(Matrix::new(0, 0, vec![])),
+                1 => inverse_1x1(&self.data, tolerance),
+                2 => inverse_2x2(&self.data, tolerance),
+                3 => inverse_3x3(&self.data, tolerance),
+                4 => inverse_4x4(&self.data, tolerance),
+                _ => unreachable!(),
+            };
+
+            return match inverse_data {
+                Some(data) => Ok(Matrix::new(n, n, data)),
+                None => Err(MatrixError::DimensionMismatch),
+            };
+        }
+
+        // Slow path: use PLU decomposition for n > 4
         let decomp = PLUDecomposition::decompose(self, Some(tolerance));
 
         // Check invertibility
         if !decomp.is_invertible() {
             return Err(MatrixError::DimensionMismatch);
         }
-
-        let n = self.rows;
 
         // Preallocate result matrix and working vectors (avoid allocations in loop)
         let mut inverse_data = vec![T::zero(); n * n];
@@ -1158,7 +1546,7 @@ where
     /// ```
     pub fn pow(&self, n: i32) -> Matrix<T>
     where
-        T: Mul<Output = T> + Add<Output = T> + ToleranceOps + PivotOrd + Div<Output = T> + Sub<Output = T> + Abs<Output = T::Abs>,
+        T: Mul<Output = T> + Add<Output = T> + ToleranceOps + PivotOrd + Div<Output = T> + Sub<Output = T> + Neg<Output = T> + Abs<Output = T::Abs>,
         T::Abs: MatrixElement + Add<Output = T::Abs> + Mul<Output = T::Abs> + PartialOrd + NanCheck,
     {
         assert_eq!(
@@ -1204,7 +1592,7 @@ where
     /// ```
     pub fn try_pow(&self, n: i32) -> Result<Matrix<T>, MatrixError>
     where
-        T: Mul<Output = T> + Add<Output = T> + ToleranceOps + PivotOrd + Div<Output = T> + Sub<Output = T> + Abs<Output = T::Abs>,
+        T: Mul<Output = T> + Add<Output = T> + ToleranceOps + PivotOrd + Div<Output = T> + Sub<Output = T> + Neg<Output = T> + Abs<Output = T::Abs>,
         T::Abs: MatrixElement + Add<Output = T::Abs> + Mul<Output = T::Abs> + PartialOrd + NanCheck,
     {
         if self.rows != self.cols {

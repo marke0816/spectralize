@@ -17,11 +17,11 @@ A high-performance, generic matrix library for Rust with support for real, integ
   - Cross product (3D vector cross product)
   - Matrix transpose
   - Trace (sum of diagonal elements)
-  - Determinant calculation (via PLU decomposition)
-  - Invertibility checking
-  - Matrix inversion (general n×n matrices via PLU decomposition)
+  - Determinant calculation with fast paths for small matrices (closed-form for n ≤ 4, PLU decomposition for n > 4)
+  - Invertibility checking with fast paths for small matrices
+  - Matrix inversion with fast paths for small matrices (closed-form for n ≤ 4, PLU decomposition for n > 4)
   - Matrix norms (Frobenius, 1-norm, infinity norm)
-  - Specialized operations for small matrices: closed-form determinants and inverses for 2x2, 3x3, and 4x4 `ConstMatrix`
+  - Specialized operations: closed-form determinants and inverses for both `Matrix` (n ≤ 4) and `ConstMatrix` (2×2, 3×3, 4×4)
 - **Matrix Construction**:
   - Zero matrices
   - Identity matrices
@@ -40,8 +40,8 @@ A high-performance, generic matrix library for Rust with support for real, integ
   - `MatrixError` for dimension/index errors
 - **Memory Efficient**: Optimized implementations with in-place mutations where possible
 - **Type Safe**: Compile-time dimension checking with `ConstMatrix<T, R, C>` const generics; runtime dimension checking with `Matrix<T>`
-- **Comprehensive Test Suite**: 359 tests covering all operations for both `Matrix` and `ConstMatrix`
-- **Numerical Stability**: PLU decomposition with partial pivoting for robust computations
+- **Comprehensive Test Suite**: 364 tests covering all operations for both `Matrix` and `ConstMatrix`
+- **Numerical Stability**: PLU decomposition with partial pivoting for robust computations; closed-form formulas for small matrices (n ≤ 4) for optimal performance
 
 ## Installation
 
@@ -190,12 +190,13 @@ let m_t = m.transpose();  // Produces a 3x2 matrix
 let square = Matrix::new(3, 3, vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0]);
 let tr = square.trace();  // 1 + 5 + 9 = 15
 
-// Determinant (via PLU decomposition with partial pivoting)
+// Determinant (closed-form for n ≤ 4, PLU decomposition for n > 4)
 let m = Matrix::new(2, 2, vec![1.0, 2.0, 3.0, 4.0]);
-let det = m.determinant();  // -2.0
+let det = m.determinant();  // -2.0 (uses fast 2×2 formula: ad - bc)
 
-// Note: integer determinants use Bareiss elimination (exact but can overflow for large values).
-// NaN values are treated as singular (determinant returns 0.0 and is_invertible is false).
+// Note: Small matrices (n ≤ 4) use optimized closed-form formulas for speed
+// Integer determinants use Bareiss elimination for n > 4 (exact but can overflow)
+// NaN values are treated as singular (determinant returns 0.0 and is_invertible is false)
 
 // Check if matrix is invertible
 let invertible = m.is_invertible();  // true
@@ -210,7 +211,7 @@ let det_checked = m.try_determinant().unwrap();  // Ok(-2.0)
 
 ### Matrix Inversion
 
-Spectralize provides general matrix inversion for n×n matrices using PLU decomposition:
+Spectralize provides general matrix inversion for n×n matrices with optimized fast paths for small matrices:
 
 ```rust
 use spectralize::Matrix;
@@ -260,7 +261,10 @@ assert!(singular.try_inverse().is_err());  // MatrixError::DimensionMismatch
 - **Floating-point types** (f32, f64, Complex): Full support with tolerance-based singularity detection
 - **Integer types**: Not supported (division required for inverse computation)
 
-**Algorithm:** Uses PLU decomposition with identity-column solving. For each column i of the identity matrix, solves A·x = eᵢ to obtain column i of A⁻¹. Efficient O(n³) implementation with reused working vectors.
+**Algorithm:**
+- **Small matrices (n ≤ 4)**: Uses closed-form adjugate/cofactor formulas for optimal performance with no heap allocations
+- **Large matrices (n > 4)**: Uses PLU decomposition with identity-column solving. For each column i of the identity matrix, solves A·x = eᵢ to obtain column i of A⁻¹
+- Both approaches are O(n³) but closed-form is significantly faster for small n due to cache efficiency and avoiding general decomposition overhead
 
 ### Cross Product
 
@@ -637,11 +641,11 @@ let perm = Matrix::<f64>::perm(4, 4, vec![2, 4, 3, 1]);
 - `cross(other)` - Cross product (3D vectors only, returns Result)
 - `transpose()` - Matrix transpose
 - `trace()` - Trace (sum of diagonal elements, square matrices only)
-- `determinant()` - Determinant via PLU decomposition with partial pivoting (square matrices only)
+- `determinant()` - Determinant with fast paths: closed-form for n ≤ 4, PLU decomposition for n > 4 (square matrices only)
 - `determinant_with_tol(tolerance)` - Determinant with custom singularity tolerance for floating-point types
-- `is_invertible()` - Check if matrix is invertible (non-singular)
+- `is_invertible()` - Check if matrix is invertible (uses fast paths for n ≤ 4)
 - `is_invertible_with_tol(tolerance)` - Invertibility check with custom tolerance for floating-point types
-- `inverse()` - Matrix inverse via PLU decomposition (square invertible matrices only)
+- `inverse()` - Matrix inverse with fast paths: closed-form for n ≤ 4, PLU decomposition for n > 4 (square invertible matrices only)
 - `try_inverse()` - Checked matrix inversion (returns Result)
 - `inverse_with_tol(tolerance)` - Matrix inverse with custom tolerance for floating-point types
 - `try_inverse_with_tol(tolerance)` - Checked matrix inversion with custom tolerance
@@ -745,9 +749,33 @@ examples/
 
 ## Implementation Notes
 
-### PLU Decomposition
+### Fast Paths for Small Matrices (n ≤ 4)
 
-The determinant and invertibility checking are powered by an efficient PLU decomposition implementation with partial pivoting:
+For performance-critical applications, Spectralize automatically uses optimized closed-form formulas for determinants and inverses of small matrices:
+
+#### Determinant Fast Paths
+- **1×1**: Returns the single element directly
+- **2×2**: Uses formula `det = ad - bc` (2 multiplications, 1 subtraction)
+- **3×3**: Uses rule of Sarrus with cofactor expansion (9 multiplications, 6 additions/subtractions)
+- **4×4**: Uses cofactor expansion along first row, reusing 3×3 helpers (40 multiplications total)
+
+#### Inverse Fast Paths
+- **1×1**: Returns reciprocal `1/a` after singularity check
+- **2×2**: Uses adjugate formula `(1/det) * [[d, -b], [-c, a]]` (4 multiplications, 4 divisions)
+- **3×3**: Computes cofactor matrix and transposes (27 multiplications)
+- **4×4**: Computes adjugate via cofactor expansion (reuses 3×3 determinant helpers)
+
+**Performance Characteristics:**
+- **Zero heap allocations**: All computation uses stack-allocated arrays and direct indexing
+- **No decomposition overhead**: Avoids general PLU setup for matrices where closed-form is faster
+- **Cache-friendly**: Unrolled formulas with minimal memory access patterns
+- **Numerically accurate**: Direct computation avoids accumulated rounding errors from elimination steps
+
+**Automatic Selection:** The library transparently selects the appropriate algorithm based on matrix size—no API changes required. For matrices larger than 4×4, the implementation falls back to PLU decomposition.
+
+### PLU Decomposition (n > 4)
+
+For large matrices (n > 4), determinant and invertibility checking use an efficient PLU decomposition implementation with partial pivoting:
 
 - **Partial Pivoting**: For each column, the algorithm selects the row with the largest absolute value as the pivot, improving numerical stability
 - **In-Place Elimination**: Gaussian elimination is performed in-place on a cloned matrix for optimal memory usage
@@ -765,6 +793,11 @@ Example computation:
 // det(A) = det(P)^(-1) * det(L) * det(U)
 //        = (-1)^(row_swaps) * 1 * product(diagonal of U)
 ```
+
+**When PLU is Used:**
+- All operations on matrices with dimension n > 4
+- Provides robust numerical stability for ill-conditioned matrices
+- Supports custom tolerance for floating-point singularity detection
 
 ### Floating-Point Tolerance for Numerical Stability
 

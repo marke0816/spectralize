@@ -316,6 +316,7 @@ where
         + PivotOrd
         + Div<Output = T>
         + Mul<Output = T>
+        + Add<Output = T>
         + Sub<Output = T>
         + Neg<Output = T>
         + Clone
