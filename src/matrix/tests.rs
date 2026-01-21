@@ -3136,4 +3136,335 @@ mod norm_tests {
         assert_eq!(result.get(1, 0), -1.0);
         assert_eq!(result.get(2, 0), 1.0);
     }
+
+    // ========================================================================
+    // Linear System Solver Tests
+    // ========================================================================
+
+    /// Test solving 2x2 system with vector RHS
+    #[test]
+    fn test_solve_2x2_vector() {
+        let a = Matrix::new(2, 2, vec![1.0, 2.0, 3.0, 4.0]);
+        let b = vec![5.0, 11.0];
+        let x = a.try_solve(&b).unwrap();
+
+        // Expected solution: x = [1.0, 2.0]
+        assert!((x[0] - 1.0).abs() < 1e-10);
+        assert!((x[1] - 2.0).abs() < 1e-10);
+
+        // Verify: A * x ≈ b
+        let result = vec![
+            a.get(0, 0) * x[0] + a.get(0, 1) * x[1],
+            a.get(1, 0) * x[0] + a.get(1, 1) * x[1],
+        ];
+        assert!((result[0] - b[0]).abs() < 1e-10);
+        assert!((result[1] - b[1]).abs() < 1e-10);
+    }
+
+    /// Test solving 3x3 system with vector RHS
+    #[test]
+    fn test_solve_3x3_vector() {
+        let a = Matrix::new(3, 3, vec![2.0, 1.0, 1.0, 4.0, 3.0, 3.0, 8.0, 7.0, 9.0]);
+        let b = vec![4.0, 10.0, 24.0];
+        let x = a.try_solve(&b).unwrap();
+
+        // Verify: A * x ≈ b
+        let mut result = vec![0.0; 3];
+        for i in 0..3 {
+            let mut sum = 0.0;
+            for j in 0..3 {
+                sum += a.get(i, j) * x[j];
+            }
+            result[i] = sum;
+        }
+
+        for i in 0..3 {
+            assert!((result[i] - b[i]).abs() < 1e-10);
+        }
+    }
+
+    /// Test solving 5x5 system (uses PLU decomposition path)
+    #[test]
+    fn test_solve_5x5_vector() {
+        let a = Matrix::new(
+            5,
+            5,
+            vec![
+                4.0, 1.0, 0.0, 0.0, 1.0, 1.0, 4.0, 1.0, 0.0, 0.0, 0.0, 1.0, 4.0, 1.0, 0.0, 0.0,
+                0.0, 1.0, 4.0, 1.0, 1.0, 0.0, 0.0, 1.0, 4.0,
+            ],
+        );
+        let b = vec![6.0, 6.0, 6.0, 6.0, 6.0];
+        let x = a.try_solve(&b).unwrap();
+
+        // Verify: A * x ≈ b
+        let mut result = vec![0.0; 5];
+        for i in 0..5 {
+            let mut sum = 0.0;
+            for j in 0..5 {
+                sum += a.get(i, j) * x[j];
+            }
+            result[i] = sum;
+        }
+
+        for i in 0..5 {
+            assert!((result[i] - b[i]).abs() < 1e-10);
+        }
+    }
+
+    /// Test solve with custom tolerance
+    #[test]
+    fn test_solve_with_tolerance() {
+        let a = Matrix::new(2, 2, vec![1.0, 2.0, 3.0, 4.0]);
+        let b = vec![5.0, 11.0];
+        let x = a.try_solve_with_tol(&b, 1e-12).unwrap();
+
+        // Verify solution
+        assert!((x[0] - 1.0).abs() < 1e-10);
+        assert!((x[1] - 2.0).abs() < 1e-10);
+    }
+
+    /// Test dimension mismatch: non-square matrix
+    #[test]
+    fn test_solve_non_square_error() {
+        let a = Matrix::new(2, 3, vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0]);
+        let b = vec![1.0, 2.0];
+        assert_eq!(a.try_solve(&b).unwrap_err(), MatrixError::DimensionMismatch);
+    }
+
+    /// Test dimension mismatch: wrong RHS length
+    #[test]
+    fn test_solve_wrong_rhs_length_error() {
+        let a = Matrix::new(2, 2, vec![1.0, 2.0, 3.0, 4.0]);
+        let b = vec![1.0, 2.0, 3.0];
+        assert_eq!(a.try_solve(&b).unwrap_err(), MatrixError::DimensionMismatch);
+    }
+
+    /// Test singular matrix error
+    #[test]
+    fn test_solve_singular_matrix_error() {
+        let a = Matrix::new(2, 2, vec![1.0, 2.0, 2.0, 4.0]);
+        let b = vec![1.0, 2.0];
+        assert_eq!(a.try_solve(&b).unwrap_err(), MatrixError::DimensionMismatch);
+    }
+
+    /// Test nearly singular matrix with different tolerances
+    #[test]
+    fn test_solve_nearly_singular_tolerance() {
+        let a = Matrix::new(2, 2, vec![1.0, 1.0, 1.0, 1.0 + 1e-10]);
+        let b = vec![2.0, 2.0 + 1e-10];
+
+        // With strict tolerance, should accept
+        let x = a.try_solve_with_tol(&b, 1e-12).unwrap();
+        assert!(x.len() == 2);
+
+        // With loose tolerance, should reject
+        assert_eq!(
+            a.try_solve_with_tol(&b, 1e-8).unwrap_err(),
+            MatrixError::DimensionMismatch
+        );
+    }
+
+    /// Test solving matrix RHS: A X = B
+    #[test]
+    fn test_solve_matrix_2x2() {
+        let a = Matrix::new(2, 2, vec![1.0, 2.0, 3.0, 4.0]);
+        let b = Matrix::new(2, 2, vec![5.0, 6.0, 11.0, 14.0]);
+        let x = a.try_solve_matrix(&b).unwrap();
+
+        // Verify: A * X ≈ B
+        let result = &a * &x;
+        assert!(result.approx_eq(&b, 1e-10));
+    }
+
+    /// Test solving matrix RHS with multiple columns
+    #[test]
+    fn test_solve_matrix_3x3_multiple_rhs() {
+        let a = Matrix::new(3, 3, vec![2.0, 1.0, 1.0, 4.0, 3.0, 3.0, 8.0, 7.0, 9.0]);
+        let b = Matrix::new(
+            3,
+            3,
+            vec![4.0, 1.0, 0.0, 10.0, 2.0, 1.0, 24.0, 3.0, 2.0],
+        );
+        let x = a.try_solve_matrix(&b).unwrap();
+
+        // Verify: A * X ≈ B
+        let result = &a * &x;
+        assert!(result.approx_eq(&b, 1e-10));
+    }
+
+    /// Test solve_matrix with custom tolerance
+    #[test]
+    fn test_solve_matrix_with_tolerance() {
+        let a = Matrix::new(2, 2, vec![1.0, 2.0, 3.0, 4.0]);
+        let b = Matrix::new(2, 1, vec![5.0, 11.0]);
+        let x = a.try_solve_matrix_with_tol(&b, 1e-12).unwrap();
+
+        // Verify: A * X ≈ B
+        let result = &a * &x;
+        assert!(result.approx_eq(&b, 1e-10));
+    }
+
+    /// Test solve_matrix dimension mismatch: non-square A
+    #[test]
+    fn test_solve_matrix_non_square_error() {
+        let a = Matrix::new(2, 3, vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0]);
+        let b = Matrix::new(2, 1, vec![1.0, 2.0]);
+        assert_eq!(
+            a.try_solve_matrix(&b).unwrap_err(),
+            MatrixError::DimensionMismatch
+        );
+    }
+
+    /// Test solve_matrix dimension mismatch: wrong B row count
+    #[test]
+    fn test_solve_matrix_wrong_rows_error() {
+        let a = Matrix::new(2, 2, vec![1.0, 2.0, 3.0, 4.0]);
+        let b = Matrix::new(3, 1, vec![1.0, 2.0, 3.0]);
+        assert_eq!(
+            a.try_solve_matrix(&b).unwrap_err(),
+            MatrixError::DimensionMismatch
+        );
+    }
+
+    /// Test solve_matrix singular matrix error
+    #[test]
+    fn test_solve_matrix_singular_error() {
+        let a = Matrix::new(2, 2, vec![1.0, 2.0, 2.0, 4.0]);
+        let b = Matrix::new(2, 1, vec![1.0, 2.0]);
+        assert_eq!(
+            a.try_solve_matrix(&b).unwrap_err(),
+            MatrixError::DimensionMismatch
+        );
+    }
+
+    /// Test PLU decomposition direct use
+    #[test]
+    fn test_plu_decomposition_solve_vec() {
+        let a = Matrix::new(3, 3, vec![2.0, 1.0, 1.0, 4.0, 3.0, 3.0, 8.0, 7.0, 9.0]);
+        let plu = a.plu().unwrap();
+
+        // Solve multiple systems with the same decomposition
+        let b1 = vec![4.0, 10.0, 24.0];
+        let x1 = plu.solve_vec(&b1).unwrap();
+
+        // Verify: A * x1 ≈ b1
+        let mut result1 = vec![0.0; 3];
+        for i in 0..3 {
+            let mut sum = 0.0;
+            for j in 0..3 {
+                sum += a.get(i, j) * x1[j];
+            }
+            result1[i] = sum;
+        }
+        for i in 0..3 {
+            assert!((result1[i] - b1[i]).abs() < 1e-10);
+        }
+
+        // Solve second system
+        let b2 = vec![1.0, 2.0, 3.0];
+        let x2 = plu.solve_vec(&b2).unwrap();
+
+        // Verify: A * x2 ≈ b2
+        let mut result2 = vec![0.0; 3];
+        for i in 0..3 {
+            let mut sum = 0.0;
+            for j in 0..3 {
+                sum += a.get(i, j) * x2[j];
+            }
+            result2[i] = sum;
+        }
+        for i in 0..3 {
+            assert!((result2[i] - b2[i]).abs() < 1e-10);
+        }
+    }
+
+    /// Test PLU decomposition with preallocated buffers
+    #[test]
+    fn test_plu_decomposition_solve_vec_into() {
+        let a = Matrix::new(2, 2, vec![1.0, 2.0, 3.0, 4.0]);
+        let plu = a.plu().unwrap();
+
+        // Preallocate buffers once
+        let mut x = vec![0.0; 2];
+        let mut work_perm = vec![0.0; 2];
+        let mut work_y = vec![0.0; 2];
+
+        // Solve first system
+        let b1 = vec![5.0, 11.0];
+        plu.solve_vec_into(&b1, &mut x, &mut work_perm, &mut work_y)
+            .unwrap();
+        assert!((x[0] - 1.0).abs() < 1e-10);
+        assert!((x[1] - 2.0).abs() < 1e-10);
+
+        // Solve second system (reusing buffers)
+        let b2 = vec![1.0, 2.0];
+        plu.solve_vec_into(&b2, &mut x, &mut work_perm, &mut work_y)
+            .unwrap();
+        // Verify solution for second system
+        let result = vec![
+            a.get(0, 0) * x[0] + a.get(0, 1) * x[1],
+            a.get(1, 0) * x[0] + a.get(1, 1) * x[1],
+        ];
+        assert!((result[0] - b2[0]).abs() < 1e-10);
+        assert!((result[1] - b2[1]).abs() < 1e-10);
+    }
+
+    /// Test PLU decomposition with custom tolerance
+    #[test]
+    fn test_plu_decomposition_with_tol() {
+        let a = Matrix::new(2, 2, vec![1.0, 2.0, 3.0, 4.0]);
+        let plu = a.plu_with_tol(1e-12).unwrap();
+
+        let b = vec![5.0, 11.0];
+        let x = plu.solve_vec(&b).unwrap();
+
+        assert!((x[0] - 1.0).abs() < 1e-10);
+        assert!((x[1] - 2.0).abs() < 1e-10);
+    }
+
+    /// Test PLU decomposition error: non-square matrix
+    #[test]
+    fn test_plu_non_square_error() {
+        let a = Matrix::new(2, 3, vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0]);
+        assert_eq!(a.plu().unwrap_err(), MatrixError::DimensionMismatch);
+    }
+
+    /// Test PLU decomposition error: singular matrix
+    #[test]
+    fn test_plu_singular_error() {
+        let a = Matrix::new(2, 2, vec![1.0, 2.0, 2.0, 4.0]);
+        assert_eq!(a.plu().unwrap_err(), MatrixError::DimensionMismatch);
+    }
+
+    /// Test PLU solve_vec dimension mismatch
+    #[test]
+    fn test_plu_solve_vec_dimension_mismatch() {
+        let a = Matrix::new(2, 2, vec![1.0, 2.0, 3.0, 4.0]);
+        let plu = a.plu().unwrap();
+
+        let b = vec![1.0, 2.0, 3.0]; // Wrong length
+        assert_eq!(
+            plu.solve_vec(&b).unwrap_err(),
+            MatrixError::DimensionMismatch
+        );
+    }
+
+    /// Test PLU solve_vec_into buffer size errors
+    #[test]
+    fn test_plu_solve_vec_into_buffer_errors() {
+        let a = Matrix::new(2, 2, vec![1.0, 2.0, 3.0, 4.0]);
+        let plu = a.plu().unwrap();
+
+        let b = vec![5.0, 11.0];
+        let mut x = vec![0.0; 1]; // Wrong size
+        let mut work_perm = vec![0.0; 2];
+        let mut work_y = vec![0.0; 2];
+
+        assert_eq!(
+            plu.solve_vec_into(&b, &mut x, &mut work_perm, &mut work_y)
+                .unwrap_err(),
+            MatrixError::DimensionMismatch
+        );
+    }
 }

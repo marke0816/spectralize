@@ -20,6 +20,8 @@ A high-performance, generic matrix library for Rust with support for real, integ
   - Determinant calculation with fast paths for small matrices (closed-form for n ≤ 4, PLU decomposition for n > 4)
   - Invertibility checking with fast paths for small matrices
   - Matrix inversion with fast paths for small matrices (closed-form for n ≤ 4, PLU decomposition for n > 4)
+  - Linear system solving (Ax = b) with vector and matrix right-hand sides
+  - PLU decomposition for factor-once-solve-many workflows
   - Matrix norms (Frobenius, 1-norm, infinity norm)
   - Specialized operations: closed-form determinants and inverses for both `Matrix` (n ≤ 4) and `ConstMatrix` (2×2, 3×3, 4×4)
 - **Matrix Construction**:
@@ -40,8 +42,9 @@ A high-performance, generic matrix library for Rust with support for real, integ
   - `MatrixError` for dimension/index errors
 - **Memory Efficient**: Optimized implementations with in-place mutations where possible
 - **Type Safe**: Compile-time dimension checking with `ConstMatrix<T, R, C>` const generics; runtime dimension checking with `Matrix<T>`
-- **Comprehensive Test Suite**: 364 tests covering all operations for both `Matrix` and `ConstMatrix`
+- **Comprehensive Test Suite**: 404+ tests covering all operations for both `Matrix` and `ConstMatrix`
 - **Numerical Stability**: PLU decomposition with partial pivoting for robust computations; closed-form formulas for small matrices (n ≤ 4) for optimal performance
+- **Linear System Solving**: Full-featured solver API with vector and matrix right-hand sides, custom tolerance support, and factor-once-solve-many pattern via `PLUDecomposition`
 
 ## Installation
 
@@ -147,6 +150,16 @@ let identity = Matrix::<Complex<f64>>::identity(3, 3);
 
 // All arithmetic operations work with complex numbers!
 let scaled = m * Complex::new(2.0, 0.0);
+
+// Linear system solving also works with complex numbers
+let a = Matrix::new(2, 2, vec![
+    Complex::new(1.0, 1.0),
+    Complex::new(2.0, 0.0),
+    Complex::new(0.0, 1.0),
+    Complex::new(1.0, 1.0),
+]);
+let b = vec![Complex::new(3.0, 1.0), Complex::new(2.0, 2.0)];
+let x = a.try_solve(&b).unwrap();
 ```
 
 ### Approximate Equality
@@ -265,6 +278,203 @@ assert!(singular.try_inverse().is_err());  // MatrixError::DimensionMismatch
 - **Small matrices (n ≤ 4)**: Uses closed-form adjugate/cofactor formulas for optimal performance with no heap allocations
 - **Large matrices (n > 4)**: Uses PLU decomposition with identity-column solving. For each column i of the identity matrix, solves A·x = eᵢ to obtain column i of A⁻¹
 - Both approaches are O(n³) but closed-form is significantly faster for small n due to cache efficiency and avoiding general decomposition overhead
+
+### Linear System Solving
+
+Spectralize provides comprehensive linear system solving APIs built on efficient PLU decomposition with partial pivoting. Solve systems of equations Ax = b where A is a square matrix, x is the solution vector, and b is the right-hand side.
+
+#### Basic Usage: Vector Right-Hand Side
+
+```rust
+use spectralize::Matrix;
+
+// Create a system: A * x = b
+let a = Matrix::new(3, 3, vec![
+    2.0, 1.0, 1.0,
+    1.0, 3.0, 2.0,
+    1.0, 1.0, 2.0,
+]);
+let b = vec![4.0, 7.0, 5.0];
+
+// Solve for x
+let x = a.solve(&b);
+// x ≈ [1.0, 1.0, 1.0]
+
+// Verify: A * x = b
+let result = &a * &Matrix::new(3, 1, x);
+let expected = Matrix::new(3, 1, b);
+assert!(result.approx_eq(&expected, 1e-10));
+
+// Checked solving (returns Result)
+let x_checked = a.try_solve(&b).unwrap();
+
+// Custom tolerance for near-singular systems
+let nearly_singular = Matrix::new(2, 2, vec![
+    1.0, 1.0,
+    1.0, 1.0 + 1e-10,
+]);
+let b2 = vec![2.0, 2.0];
+
+// Strict tolerance: treats as solvable
+let x1 = nearly_singular.try_solve_with_tol(&b2, 1e-12);
+assert!(x1.is_ok());
+
+// Loose tolerance: treats as singular
+let x2 = nearly_singular.try_solve_with_tol(&b2, 1e-8);
+assert!(x2.is_err());  // MatrixError::DimensionMismatch
+```
+
+**Available Methods:**
+- `solve(&b)` - Solve Ax = b, panics if A is singular or dimensions mismatch
+- `try_solve(&b)` - Returns `Result<Vec<T>, MatrixError>`
+- `solve_with_tol(&b, tolerance)` - Custom tolerance for floating-point types
+- `try_solve_with_tol(&b, tolerance)` - Checked version with custom tolerance
+
+#### Matrix Right-Hand Side (Multiple Systems)
+
+Solve multiple systems Ax = B where B is a matrix with k columns, solving k systems simultaneously:
+
+```rust
+use spectralize::Matrix;
+
+// Solve A * X = B where B has 2 columns (2 right-hand sides)
+let a = Matrix::new(3, 3, vec![
+    2.0, 1.0, 1.0,
+    1.0, 3.0, 2.0,
+    1.0, 1.0, 2.0,
+]);
+let b = Matrix::new(3, 2, vec![
+    4.0, 5.0,  // First RHS
+    7.0, 8.0,  // Second RHS
+    5.0, 6.0,
+]);
+
+// Solve for X (3x2 matrix)
+let x = a.try_solve_matrix(&b).unwrap();
+
+// Verify: A * X = B
+let result = &a * &x;
+assert!(result.approx_eq(&b, 1e-10));
+
+// With custom tolerance
+let x_tol = a.try_solve_matrix_with_tol(&b, 1e-12).unwrap();
+```
+
+**Available Methods:**
+- `try_solve_matrix(&b)` - Solve AX = B for matrix B
+- `try_solve_matrix_with_tol(&b, tolerance)` - With custom tolerance
+
+#### Factor-Once-Solve-Many Pattern
+
+For solving multiple systems with the same matrix A but different right-hand sides, factor once and reuse the decomposition:
+
+```rust
+use spectralize::{Matrix, PLUDecomposition};
+
+// Factor A once
+let a = Matrix::new(3, 3, vec![
+    2.0, 1.0, 1.0,
+    1.0, 3.0, 2.0,
+    1.0, 1.0, 2.0,
+]);
+let plu = a.plu().unwrap();  // PLUDecomposition<f64>
+
+// Solve multiple systems efficiently
+let b1 = vec![4.0, 7.0, 5.0];
+let x1 = plu.solve_vec(&b1).unwrap();
+
+let b2 = vec![1.0, 2.0, 3.0];
+let x2 = plu.solve_vec(&b2).unwrap();
+
+let b3 = vec![9.0, 8.0, 7.0];
+let x3 = plu.solve_vec(&b3).unwrap();
+
+// Zero-allocation variant with preallocated buffers
+let mut x = vec![0.0; 3];
+let mut work_perm = vec![0.0; 3];
+let mut work_y = vec![0.0; 3];
+
+plu.solve_vec_into(&b1, &mut x, &mut work_perm, &mut work_y).unwrap();
+// x now contains the solution, no allocations performed
+```
+
+**PLUDecomposition Methods:**
+- `plu()` - Factor matrix A, returns `Result<PLUDecomposition<T>, MatrixError>`
+- `plu_with_tol(tolerance)` - Factor with custom tolerance
+- `solve_vec(&b)` - Solve using existing factorization (allocates result)
+- `solve_vec_into(&b, x, work_perm, work_y)` - Zero-allocation variant
+
+**Performance Benefits:**
+- **Factor once**: O(n³) factorization done once
+- **Solve many**: Each solve is O(n²) instead of O(n³)
+- **Zero allocations**: `solve_vec_into()` avoids heap allocations in hot paths
+- **Perfect for**: Parameter studies, sensitivity analysis, iterative refinement
+
+#### Tolerance Behavior
+
+The linear system solver uses the same tolerance formula as matrix inversion:
+
+```
+tolerance = n × ε_machine × ||A||_∞
+```
+
+Where:
+- **n** = matrix dimension
+- **ε_machine** = 2.2e-16 for f64, 1.2e-7 for f32
+- **||A||_∞** = infinity norm (maximum absolute row sum)
+
+**How tolerance affects solving:**
+1. During PLU factorization, pivots smaller than tolerance are treated as zero
+2. Matrices with any zero pivot are marked as singular
+3. Singular matrices return `MatrixError::DimensionMismatch` (reused for consistency)
+4. Custom tolerance allows fine-tuning for specific numerical characteristics
+
+**Type-specific behavior:**
+- **Floating-point** (f32, f64, Complex): Tolerance-aware, handles near-singular systems gracefully
+- **Integer types**: Not supported (division required for solving)
+
+#### Algorithm and Fast Paths
+
+**For n ≤ 4 (small matrices):**
+- Uses existing closed-form inverse formulas
+- Computes x = A⁻¹ * b using optimized matrix-vector multiplication
+- Zero heap allocations for the inversion
+- Significantly faster than general PLU for small systems
+
+**For n > 4 (large matrices):**
+- Uses PLU decomposition with partial pivoting: PA = LU
+- Forward substitution: Ly = Pb (solve for y)
+- Backward substitution: Ux = y (solve for x)
+- Optimal numerical stability from partial pivoting
+- Efficient memory usage with in-place operations
+
+**Complexity:**
+- One-time solving: O(n³) for decomposition + O(n²) for substitution
+- Factor-once-solve-many: O(n³) once + O(n²) per solve
+- Matrix RHS (k columns): O(n³) + O(kn²)
+
+#### Error Handling
+
+```rust
+use spectralize::{Matrix, MatrixError};
+
+let a = Matrix::new(2, 2, vec![1.0, 2.0, 3.0, 4.0]);
+let b = vec![5.0, 6.0];
+
+// Dimension mismatch
+let wrong_b = vec![1.0, 2.0, 3.0];  // Wrong size
+assert!(matches!(a.try_solve(&wrong_b), Err(MatrixError::DimensionMismatch)));
+
+// Singular matrix
+let singular = Matrix::new(2, 2, vec![1.0, 2.0, 2.0, 4.0]);
+assert!(matches!(singular.try_solve(&b), Err(MatrixError::DimensionMismatch)));
+
+// Non-square matrix
+let non_square = Matrix::new(2, 3, vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0]);
+assert!(matches!(non_square.try_solve(&b), Err(MatrixError::DimensionMismatch)));
+```
+
+All error conditions return `MatrixError::DimensionMismatch` for consistency with existing APIs
 
 ### Cross Product
 
@@ -564,6 +774,113 @@ assert!(singular.inverse().is_none());
 - **Type-safe**: Only available for the correct matrix sizes
 - **Exact for integers**: No tolerance issues with integer matrices
 
+### ConstMatrix Linear System Solving
+
+`ConstMatrix` provides linear system solving with compile-time dimension checking and automatic algorithm selection:
+
+```rust
+use spectralize::matrix::ConstMatrix;
+
+// Solve A * x = b where dimensions are known at compile time
+let a: ConstMatrix<f64, 3, 3> = ConstMatrix::new(vec![
+    2.0, 1.0, 1.0,
+    1.0, 3.0, 2.0,
+    1.0, 1.0, 2.0,
+]);
+let b: ConstMatrix<f64, 3, 1> = ConstMatrix::new(vec![4.0, 7.0, 5.0]);
+
+// Solve for x (type is ConstMatrix<f64, 3, 1>)
+let x = a.solve(&b);
+
+// Verify: A * x = b
+let result = a * x;
+assert!(result.approx_eq(&b, 1e-10));
+
+// Checked solving
+let x_checked = a.try_solve(&b).unwrap();
+
+// Custom tolerance
+let x_tol = a.try_solve_with_tol(&b, 1e-12).unwrap();
+```
+
+**Available Methods:**
+- `solve(&b)` - Solve Ax = b, panics if A is singular
+- `try_solve(&b)` - Returns `Result<ConstMatrix<T, N, K>, MatrixError>`
+- `solve_with_tol(&b, tolerance)` - Custom tolerance for floating-point types
+- `try_solve_with_tol(&b, tolerance)` - Checked version with custom tolerance
+
+**Multiple Right-Hand Sides:**
+
+The RHS can be a matrix with K columns to solve K systems simultaneously:
+
+```rust
+use spectralize::matrix::ConstMatrix;
+
+let a: ConstMatrix<f64, 3, 3> = ConstMatrix::new(vec![
+    2.0, 1.0, 1.0,
+    1.0, 3.0, 2.0,
+    1.0, 1.0, 2.0,
+]);
+
+// B has 2 columns (2 right-hand sides)
+let b: ConstMatrix<f64, 3, 2> = ConstMatrix::new(vec![
+    4.0, 5.0,
+    7.0, 8.0,
+    5.0, 6.0,
+]);
+
+// Solve for X (type is ConstMatrix<f64, 3, 2>)
+let x = a.try_solve(&b).unwrap();
+
+// Verify: A * X = B
+let result = a * x;
+assert!(result.approx_eq(&b, 1e-10));
+```
+
+**Algorithm Selection (Automatic):**
+
+The implementation automatically chooses the optimal algorithm based on matrix size:
+
+- **N = 1**: Direct division (a₀₀ x = b₀ → x = b₀/a₀₀)
+- **N = 2**: Uses closed-form 2×2 inverse (determinant + adjugate)
+- **N = 3**: Uses closed-form 3×3 inverse with tolerance support
+- **N = 4**: Uses closed-form 4×4 inverse with tolerance support
+- **N > 4**: Converts to dynamic `Matrix` and uses PLU decomposition
+
+**Tolerance Behavior:**
+
+All sizes now correctly respect custom tolerance:
+
+```rust
+use spectralize::matrix::ConstMatrix;
+
+let nearly_singular: ConstMatrix<f64, 3, 3> = ConstMatrix::new(vec![
+    1.0, 1.0, 1.0,
+    1.0, 1.0 + 1e-10, 1.0,
+    1.0, 1.0, 1.0,
+]);
+let b: ConstMatrix<f64, 3, 1> = ConstMatrix::new(vec![3.0, 3.0, 3.0]);
+
+// Strict tolerance: treats as solvable
+let x1 = nearly_singular.try_solve_with_tol(&b, 1e-12);
+assert!(x1.is_ok());
+
+// Loose tolerance: treats as singular
+let x2 = nearly_singular.try_solve_with_tol(&b, 1e-8);
+assert!(x2.is_err());  // MatrixError::DimensionMismatch
+```
+
+For N ≤ 4, the implementation uses specialized `inverse_with_tol()` methods that compute determinants scaled by tolerance. This ensures consistent behavior across all matrix sizes.
+
+**Performance Characteristics:**
+- **N ≤ 4**: Zero heap allocations, optimal cache performance, no decomposition overhead
+- **N > 4**: Single allocation for dynamic matrix conversion, then uses efficient PLU solver
+- **Compile-time safety**: Type system enforces A is square (N×N) and b has N rows
+
+**Type Support:**
+- **Floating-point** (f32, f64, Complex): Full support with tolerance-based singularity detection
+- **Integer types**: Not supported (division required)
+
 ### Converting Between Matrix and ConstMatrix
 
 ```rust
@@ -653,6 +970,20 @@ let perm = Matrix::<f64>::perm(4, 4, vec![2, 4, 3, 1]);
 - `norm_one()` - 1-norm (maximum absolute column sum): ||A||_1 = max_j Σ_i |a_ij|
 - `norm_inf()` - Infinity norm (maximum absolute row sum): ||A||_∞ = max_i Σ_j |a_ij|
 
+#### Linear System Solving
+- `solve(&b)` - Solve Ax = b for vector b, panics if A is singular or dimensions mismatch
+- `try_solve(&b)` - Checked solving, returns `Result<Vec<T>, MatrixError>`
+- `solve_with_tol(&b, tolerance)` - Solve with custom tolerance for floating-point types
+- `try_solve_with_tol(&b, tolerance)` - Checked solving with custom tolerance
+- `try_solve_matrix(&b)` - Solve AX = B for matrix B with multiple right-hand sides
+- `try_solve_matrix_with_tol(&b, tolerance)` - Matrix solving with custom tolerance
+- `plu()` - Factor matrix using PLU decomposition, returns `Result<PLUDecomposition<T>, MatrixError>`
+- `plu_with_tol(tolerance)` - PLU factorization with custom tolerance
+
+#### PLUDecomposition Methods
+- `solve_vec(&b)` - Solve Ax = b using existing factorization, returns `Result<Vec<T>, MatrixError>`
+- `solve_vec_into(&b, x, work_perm, work_y)` - Zero-allocation solving with preallocated buffers
+
 #### Concatenation
 - `with_cols(other)` - Horizontal concatenation
 - `with_rows(other)` - Vertical concatenation
@@ -716,17 +1047,17 @@ cargo test scalar_multiplication
 
 ```
 src/
-├── lib.rs                    # Public API exports
+├── lib.rs                    # Public API exports (includes PLUDecomposition)
 └── matrix/
     ├── mod.rs                # Core Matrix struct and basic operations
-    ├── const_matrix.rs       # ConstMatrix with compile-time dimensions (~1150 lines)
-    ├── const_matrix_tests.rs # ConstMatrix test suite (105 tests)
+    ├── const_matrix.rs       # ConstMatrix with compile-time dimensions (~1700 lines)
+    ├── const_matrix_tests.rs # ConstMatrix test suite (124 tests)
     ├── element.rs            # MatrixElement trait and implementations
     ├── arithmetic.rs         # Arithmetic operations (Add, Sub, Mul, cross product, etc.)
     ├── append.rs             # Matrix concatenation operations
-    ├── decomposition.rs      # PLU decomposition, determinant, and invertibility
+    ├── decomposition.rs      # PLU decomposition, linear system solving, determinant, and invertibility
     ├── norm.rs               # Matrix norms (Frobenius, 1-norm, infinity norm)
-    └── tests.rs              # Matrix test suite (225 tests)
+    └── tests.rs              # Matrix test suite (250 tests)
 examples/
 ├── float_matrices.rs           # Float operations (f32, f64)
 ├── integer_matrices.rs         # Integer operations (i32, i64)
@@ -742,10 +1073,10 @@ examples/
   - Cholesky decomposition
   - Singular Value Decomposition (SVD)
 - Eigenvalue and eigenvector computation
-- Linear system solving API (infrastructure exists via PLU decomposition)
 - Purpose-built graphics rendering APIs
 - Sparse matrix support
 - Iterative methods for large systems
+- Iterative refinement for improved accuracy in ill-conditioned systems
 
 ## Implementation Notes
 

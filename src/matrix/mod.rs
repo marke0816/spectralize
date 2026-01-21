@@ -8,6 +8,7 @@ pub mod norm;
 use crate::matrix::decomposition::PivotOrd;
 use crate::matrix::norm::Abs;
 pub use const_matrix::ConstMatrix;
+pub use decomposition::PLUDecomposition;
 pub use element::{MatrixElement, NanCheck, ToleranceOps};
 use std::ops::{Add, Div, Mul, Neg, Sub};
 

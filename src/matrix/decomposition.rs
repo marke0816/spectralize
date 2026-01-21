@@ -370,13 +370,36 @@ where
     data[(n - 1) * n + (n - 1)] != T::zero()
 }
 
-/// Internal helper struct that stores the result of PLU decomposition.
+/// Stores the result of PLU decomposition with partial pivoting.
+///
 /// The L and U matrices are stored in a single matrix:
 /// - Lower triangle (below diagonal) contains L with implicit 1s on diagonal
 /// - Upper triangle (including diagonal) contains U
 /// This packed storage is standard in numerical linear algebra for efficiency.
+///
+/// # Example
+///
+/// ```
+/// use spectralize::matrix::Matrix;
+///
+/// let a = Matrix::new(3, 3, vec![
+///     2.0, 1.0, 1.0,
+///     4.0, 3.0, 3.0,
+///     8.0, 7.0, 9.0
+/// ]);
+///
+/// // Decompose once
+/// let plu = a.plu().unwrap();
+///
+/// // Solve multiple right-hand sides efficiently
+/// let b1 = vec![4.0, 10.0, 24.0];
+/// let x1 = plu.solve_vec(&b1).unwrap();
+///
+/// let b2 = vec![1.0, 2.0, 3.0];
+/// let x2 = plu.solve_vec(&b2).unwrap();
+/// ```
 #[derive(Debug, Clone)]
-struct PLUDecomposition<T: MatrixElement + std::fmt::Debug + ToleranceOps> {
+pub struct PLUDecomposition<T: MatrixElement + std::fmt::Debug + ToleranceOps> {
     /// Combined L and U matrices in packed form
     lu: Matrix<T>,
     /// Permutation vector: perm[i] indicates the original row index that is now at row i
@@ -851,6 +874,99 @@ where
             }
             x[i] = sum / data[i * cols + i].clone(); // Divide by diagonal element
         }
+    }
+
+    /// Solve a linear system Ax = b and return the solution vector.
+    ///
+    /// This is a convenience method that allocates the result vector and working
+    /// buffers internally. For repeated solves, use `solve_vec_into` to avoid
+    /// repeated allocations.
+    ///
+    /// # Errors
+    ///
+    /// Returns `MatrixError::DimensionMismatch` if:
+    /// - The right-hand side length does not match the matrix dimension
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use spectralize::matrix::Matrix;
+    ///
+    /// let a = Matrix::new(2, 2, vec![1.0, 2.0, 3.0, 4.0]);
+    /// let plu = a.plu().unwrap();
+    ///
+    /// let b = vec![5.0, 11.0];
+    /// let x = plu.solve_vec(&b).unwrap();
+    ///
+    /// // Verify: x should be [1.0, 2.0]
+    /// assert!((x[0] - 1.0f64).abs() < 1e-10);
+    /// assert!((x[1] - 2.0f64).abs() < 1e-10);
+    /// ```
+    pub fn solve_vec(&self, b: &[T]) -> Result<Vec<T>, MatrixError>
+    where
+        T: Add<Output = T>,
+    {
+        let n = self.lu.rows();
+        if b.len() != n {
+            return Err(MatrixError::DimensionMismatch);
+        }
+
+        // Allocate working buffers
+        let mut work_perm = vec![T::zero(); n];
+        let mut work_y = vec![T::zero(); n];
+        let mut x = vec![T::zero(); n];
+
+        self.solve(b, &mut work_perm, &mut work_y, &mut x);
+        Ok(x)
+    }
+
+    /// Solve a linear system Ax = b into preallocated buffers.
+    ///
+    /// This method allows advanced users to provide their own working buffers
+    /// to avoid allocations in hot paths. All buffers must have length n.
+    ///
+    /// # Errors
+    ///
+    /// Returns `MatrixError::DimensionMismatch` if:
+    /// - The right-hand side length does not match the matrix dimension
+    /// - Any working buffer has incorrect length
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use spectralize::matrix::Matrix;
+    ///
+    /// let a = Matrix::new(2, 2, vec![1.0, 2.0, 3.0, 4.0]);
+    /// let plu = a.plu().unwrap();
+    ///
+    /// // Preallocate buffers once for multiple solves
+    /// let mut x = vec![0.0; 2];
+    /// let mut work_perm = vec![0.0; 2];
+    /// let mut work_y = vec![0.0; 2];
+    ///
+    /// let b1 = vec![5.0, 11.0];
+    /// plu.solve_vec_into(&b1, &mut x, &mut work_perm, &mut work_y).unwrap();
+    ///
+    /// let b2 = vec![1.0, 2.0];
+    /// plu.solve_vec_into(&b2, &mut x, &mut work_perm, &mut work_y).unwrap();
+    /// ```
+    pub fn solve_vec_into(
+        &self,
+        b: &[T],
+        x: &mut [T],
+        work_perm: &mut [T],
+        work_y: &mut [T],
+    ) -> Result<(), MatrixError>
+    where
+        T: Add<Output = T>,
+    {
+        let n = self.lu.rows();
+        if b.len() != n || x.len() != n || work_perm.len() != n || work_y.len() != n {
+            return Err(MatrixError::DimensionMismatch);
+        }
+
+        self.solve(b, work_perm, work_y, x);
+        Ok(())
     }
 }
 
@@ -1514,6 +1630,448 @@ where
         }
 
         Ok(Matrix::new(n, n, inverse_data))
+    }
+
+    /// Compute the PLU decomposition of the matrix using default tolerance.
+    ///
+    /// Returns a `PLUDecomposition` that can be used to efficiently solve
+    /// multiple linear systems with the same coefficient matrix.
+    ///
+    /// # Errors
+    ///
+    /// Returns `MatrixError::DimensionMismatch` if:
+    /// - The matrix is not square
+    /// - The matrix is singular (non-invertible)
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use spectralize::matrix::Matrix;
+    ///
+    /// let a = Matrix::new(3, 3, vec![
+    ///     2.0, 1.0, 1.0,
+    ///     4.0, 3.0, 3.0,
+    ///     8.0, 7.0, 9.0
+    /// ]);
+    ///
+    /// // Decompose once
+    /// let plu = a.plu().unwrap();
+    ///
+    /// // Solve multiple systems efficiently
+    /// let b1 = vec![4.0, 10.0, 24.0];
+    /// let x1 = plu.solve_vec(&b1).unwrap();
+    ///
+    /// let b2 = vec![1.0, 2.0, 3.0];
+    /// let x2 = plu.solve_vec(&b2).unwrap();
+    /// ```
+    pub fn plu(&self) -> Result<PLUDecomposition<T>, MatrixError>
+    where
+        T: ToleranceOps + PivotOrd + Div<Output = T> + Mul<Output = T> + Add<Output = T> + Sub<Output = T> + Neg<Output = T> + Clone + Abs<Output = T::Abs>,
+        T::Abs: MatrixElement + Add<Output = T::Abs> + Mul<Output = T::Abs> + PartialOrd + NanCheck,
+    {
+        if self.rows != self.cols {
+            return Err(MatrixError::DimensionMismatch);
+        }
+
+        let decomp = PLUDecomposition::decompose(self, None);
+        if !decomp.is_invertible() {
+            return Err(MatrixError::DimensionMismatch);
+        }
+
+        Ok(decomp)
+    }
+
+    /// Compute the PLU decomposition using a custom tolerance threshold.
+    ///
+    /// This variant allows you to specify your own tolerance for singularity detection.
+    ///
+    /// # Errors
+    ///
+    /// Returns `MatrixError::DimensionMismatch` if:
+    /// - The matrix is not square
+    /// - The matrix is singular under the specified tolerance
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use spectralize::matrix::Matrix;
+    ///
+    /// let a = Matrix::new(2, 2, vec![1.0, 2.0, 3.0, 4.0]);
+    /// let plu = a.plu_with_tol(1e-10).unwrap();
+    ///
+    /// let b = vec![5.0, 11.0];
+    /// let x = plu.solve_vec(&b).unwrap();
+    /// ```
+    pub fn plu_with_tol(&self, tolerance: T::Abs) -> Result<PLUDecomposition<T>, MatrixError>
+    where
+        T: ToleranceOps + PivotOrd + Div<Output = T> + Mul<Output = T> + Add<Output = T> + Sub<Output = T> + Neg<Output = T> + Clone + Abs<Output = T::Abs>,
+        T::Abs: MatrixElement + Add<Output = T::Abs> + Mul<Output = T::Abs> + PartialOrd + NanCheck,
+    {
+        if self.rows != self.cols {
+            return Err(MatrixError::DimensionMismatch);
+        }
+
+        let decomp = PLUDecomposition::decompose(self, Some(tolerance));
+        if !decomp.is_invertible() {
+            return Err(MatrixError::DimensionMismatch);
+        }
+
+        Ok(decomp)
+    }
+
+    /// Solve the linear system Ax = b using default tolerance.
+    ///
+    /// Returns the solution vector x. For small matrices (n ≤ 4), uses fast
+    /// closed-form inverse. For larger matrices, uses PLU decomposition.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the matrix is not square, the right-hand side dimension
+    /// doesn't match, or the matrix is singular.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use spectralize::matrix::Matrix;
+    ///
+    /// let a = Matrix::new(2, 2, vec![1.0, 2.0, 3.0, 4.0]);
+    /// let b = vec![5.0, 11.0];
+    /// let x = a.solve(&b);
+    ///
+    /// // Verify: x should be [1.0, 2.0]
+    /// assert!((x[0] - 1.0f64).abs() < 1e-10);
+    /// assert!((x[1] - 2.0f64).abs() < 1e-10);
+    /// ```
+    pub fn solve(&self, b: &[T]) -> Vec<T>
+    where
+        T: ToleranceOps + PivotOrd + Div<Output = T> + Mul<Output = T> + Add<Output = T> + Sub<Output = T> + Neg<Output = T> + Clone + Abs<Output = T::Abs>,
+        T::Abs: MatrixElement + Add<Output = T::Abs> + Mul<Output = T::Abs> + PartialOrd + NanCheck,
+    {
+        self.try_solve(b).expect("Matrix must be square, invertible, and dimensions must match")
+    }
+
+    /// Solve the linear system Ax = b using default tolerance.
+    ///
+    /// This is the checked version that returns a `Result` instead of panicking.
+    ///
+    /// # Errors
+    ///
+    /// Returns `MatrixError::DimensionMismatch` if:
+    /// - The matrix is not square
+    /// - The right-hand side length doesn't match the matrix dimension
+    /// - The matrix is singular
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use spectralize::matrix::Matrix;
+    ///
+    /// let a = Matrix::new(2, 2, vec![1.0, 2.0, 3.0, 4.0]);
+    /// let b = vec![5.0, 11.0];
+    /// let x = a.try_solve(&b).unwrap();
+    ///
+    /// // Verify: x should be [1.0, 2.0]
+    /// assert!((x[0] - 1.0f64).abs() < 1e-10);
+    /// assert!((x[1] - 2.0f64).abs() < 1e-10);
+    /// ```
+    pub fn try_solve(&self, b: &[T]) -> Result<Vec<T>, MatrixError>
+    where
+        T: ToleranceOps + PivotOrd + Div<Output = T> + Mul<Output = T> + Add<Output = T> + Sub<Output = T> + Neg<Output = T> + Clone + Abs<Output = T::Abs>,
+        T::Abs: MatrixElement + Add<Output = T::Abs> + Mul<Output = T::Abs> + PartialOrd + NanCheck,
+    {
+        // Check dimensions
+        if self.rows != self.cols {
+            return Err(MatrixError::DimensionMismatch);
+        }
+        if b.len() != self.rows {
+            return Err(MatrixError::DimensionMismatch);
+        }
+
+        let n = self.rows;
+
+        // Fast path for small matrices (n ≤ 4): use inverse
+        if n <= 4 {
+            let inv = self.try_inverse()?;
+            // Multiply inv * b
+            let mut result = vec![T::zero(); n];
+            for i in 0..n {
+                let mut sum = T::zero();
+                for j in 0..n {
+                    sum = sum + (inv.get(i, j) * b[j].clone());
+                }
+                result[i] = sum;
+            }
+            return Ok(result);
+        }
+
+        // For integers, return error (no PLU solver for integers yet)
+        if T::epsilon().is_none() {
+            return Err(MatrixError::DimensionMismatch);
+        }
+
+        // Use PLU decomposition for n > 4
+        let decomp = PLUDecomposition::decompose(self, None);
+        if !decomp.is_invertible() {
+            return Err(MatrixError::DimensionMismatch);
+        }
+
+        decomp.solve_vec(b)
+    }
+
+    /// Solve the linear system Ax = b using a custom tolerance.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the matrix is not square, the right-hand side dimension
+    /// doesn't match, or the matrix is singular under the specified tolerance.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use spectralize::matrix::Matrix;
+    ///
+    /// let a = Matrix::new(2, 2, vec![1.0, 2.0, 3.0, 4.0]);
+    /// let b = vec![5.0, 11.0];
+    /// let x = a.solve_with_tol(&b, 1e-10);
+    /// ```
+    pub fn solve_with_tol(&self, b: &[T], tolerance: T::Abs) -> Vec<T>
+    where
+        T: ToleranceOps + PivotOrd + Div<Output = T> + Mul<Output = T> + Add<Output = T> + Sub<Output = T> + Neg<Output = T> + Clone + Abs<Output = T::Abs>,
+        T::Abs: MatrixElement + Add<Output = T::Abs> + Mul<Output = T::Abs> + PartialOrd + NanCheck,
+    {
+        self.try_solve_with_tol(b, tolerance).expect("Matrix must be square, invertible, and dimensions must match")
+    }
+
+    /// Solve the linear system Ax = b using a custom tolerance.
+    ///
+    /// This is the checked version that returns a `Result` instead of panicking.
+    ///
+    /// # Errors
+    ///
+    /// Returns `MatrixError::DimensionMismatch` if:
+    /// - The matrix is not square
+    /// - The right-hand side length doesn't match the matrix dimension
+    /// - The matrix is singular under the specified tolerance
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use spectralize::matrix::Matrix;
+    ///
+    /// let a = Matrix::new(2, 2, vec![1.0, 2.0, 3.0, 4.0]);
+    /// let b = vec![5.0, 11.0];
+    /// let x = a.try_solve_with_tol(&b, 1e-10).unwrap();
+    /// ```
+    pub fn try_solve_with_tol(&self, b: &[T], tolerance: T::Abs) -> Result<Vec<T>, MatrixError>
+    where
+        T: ToleranceOps + PivotOrd + Div<Output = T> + Mul<Output = T> + Add<Output = T> + Sub<Output = T> + Neg<Output = T> + Clone + Abs<Output = T::Abs>,
+        T::Abs: MatrixElement + Add<Output = T::Abs> + Mul<Output = T::Abs> + PartialOrd + NanCheck,
+    {
+        // Check dimensions
+        if self.rows != self.cols {
+            return Err(MatrixError::DimensionMismatch);
+        }
+        if b.len() != self.rows {
+            return Err(MatrixError::DimensionMismatch);
+        }
+
+        let n = self.rows;
+
+        // Fast path for small matrices (n ≤ 4): use inverse
+        if n <= 4 {
+            let inv = self.try_inverse_with_tol(tolerance)?;
+            // Multiply inv * b
+            let mut result = vec![T::zero(); n];
+            for i in 0..n {
+                let mut sum = T::zero();
+                for j in 0..n {
+                    sum = sum + (inv.get(i, j) * b[j].clone());
+                }
+                result[i] = sum;
+            }
+            return Ok(result);
+        }
+
+        // For integers, return error (no PLU solver for integers yet)
+        if T::epsilon().is_none() {
+            return Err(MatrixError::DimensionMismatch);
+        }
+
+        // Use PLU decomposition for n > 4
+        let decomp = PLUDecomposition::decompose(self, Some(tolerance));
+        if !decomp.is_invertible() {
+            return Err(MatrixError::DimensionMismatch);
+        }
+
+        decomp.solve_vec(b)
+    }
+
+    /// Solve the matrix linear system AX = B using default tolerance.
+    ///
+    /// Solves for matrix X where A is this matrix and B is the right-hand side matrix.
+    /// Each column of B is solved independently using the same PLU decomposition.
+    ///
+    /// # Errors
+    ///
+    /// Returns `MatrixError::DimensionMismatch` if:
+    /// - The matrix A is not square
+    /// - The number of rows in B doesn't match the dimension of A
+    /// - The matrix A is singular
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use spectralize::matrix::Matrix;
+    ///
+    /// let a = Matrix::new(2, 2, vec![1.0, 2.0, 3.0, 4.0]);
+    /// let b = Matrix::new(2, 2, vec![5.0, 6.0, 11.0, 14.0]);
+    /// let x = a.try_solve_matrix(&b).unwrap();
+    ///
+    /// // Verify: A * X ≈ B
+    /// let result = &a * &x;
+    /// assert!(result.approx_eq(&b, 1e-10));
+    /// ```
+    pub fn try_solve_matrix(&self, b: &Matrix<T>) -> Result<Matrix<T>, MatrixError>
+    where
+        T: ToleranceOps + PivotOrd + Div<Output = T> + Mul<Output = T> + Add<Output = T> + Sub<Output = T> + Neg<Output = T> + Clone + Abs<Output = T::Abs>,
+        T::Abs: MatrixElement + Add<Output = T::Abs> + Mul<Output = T::Abs> + PartialOrd + NanCheck,
+    {
+        // Check dimensions
+        if self.rows != self.cols {
+            return Err(MatrixError::DimensionMismatch);
+        }
+        if b.rows() != self.rows {
+            return Err(MatrixError::DimensionMismatch);
+        }
+
+        let n = self.rows;
+        let k = b.cols();
+
+        // Fast path for small matrices (n ≤ 4): use inverse
+        if n <= 4 {
+            let inv = self.try_inverse()?;
+            return Ok(&inv * b);
+        }
+
+        // For integers, return error (no PLU solver for integers yet)
+        if T::epsilon().is_none() {
+            return Err(MatrixError::DimensionMismatch);
+        }
+
+        // Use PLU decomposition for n > 4
+        let decomp = PLUDecomposition::decompose(self, None);
+        if !decomp.is_invertible() {
+            return Err(MatrixError::DimensionMismatch);
+        }
+
+        // Preallocate result matrix and working buffers
+        let mut result_data = vec![T::zero(); n * k];
+        let mut work_perm = vec![T::zero(); n];
+        let mut work_y = vec![T::zero(); n];
+        let mut work_x = vec![T::zero(); n];
+        let mut b_col = vec![T::zero(); n];
+
+        // Solve for each column of B
+        for col_idx in 0..k {
+            // Extract column from B
+            for row in 0..n {
+                b_col[row] = b.get(row, col_idx);
+            }
+
+            // Solve A x = b_col
+            decomp.solve(&b_col, &mut work_perm, &mut work_y, &mut work_x);
+
+            // Write solution into result matrix (column col_idx)
+            for row in 0..n {
+                result_data[row * k + col_idx] = work_x[row].clone();
+            }
+        }
+
+        Ok(Matrix::new(n, k, result_data))
+    }
+
+    /// Solve the matrix linear system AX = B using a custom tolerance.
+    ///
+    /// Solves for matrix X where A is this matrix and B is the right-hand side matrix.
+    /// Each column of B is solved independently using the same PLU decomposition.
+    ///
+    /// # Errors
+    ///
+    /// Returns `MatrixError::DimensionMismatch` if:
+    /// - The matrix A is not square
+    /// - The number of rows in B doesn't match the dimension of A
+    /// - The matrix A is singular under the specified tolerance
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use spectralize::matrix::Matrix;
+    ///
+    /// let a = Matrix::new(2, 2, vec![1.0, 2.0, 3.0, 4.0]);
+    /// let b = Matrix::new(2, 2, vec![5.0, 6.0, 11.0, 14.0]);
+    /// let x = a.try_solve_matrix_with_tol(&b, 1e-10).unwrap();
+    ///
+    /// // Verify: A * X ≈ B
+    /// let result = &a * &x;
+    /// assert!(result.approx_eq(&b, 1e-10));
+    /// ```
+    pub fn try_solve_matrix_with_tol(&self, b: &Matrix<T>, tolerance: T::Abs) -> Result<Matrix<T>, MatrixError>
+    where
+        T: ToleranceOps + PivotOrd + Div<Output = T> + Mul<Output = T> + Add<Output = T> + Sub<Output = T> + Neg<Output = T> + Clone + Abs<Output = T::Abs>,
+        T::Abs: MatrixElement + Add<Output = T::Abs> + Mul<Output = T::Abs> + PartialOrd + NanCheck,
+    {
+        // Check dimensions
+        if self.rows != self.cols {
+            return Err(MatrixError::DimensionMismatch);
+        }
+        if b.rows() != self.rows {
+            return Err(MatrixError::DimensionMismatch);
+        }
+
+        let n = self.rows;
+        let k = b.cols();
+
+        // Fast path for small matrices (n ≤ 4): use inverse
+        if n <= 4 {
+            let inv = self.try_inverse_with_tol(tolerance)?;
+            return Ok(&inv * b);
+        }
+
+        // For integers, return error (no PLU solver for integers yet)
+        if T::epsilon().is_none() {
+            return Err(MatrixError::DimensionMismatch);
+        }
+
+        // Use PLU decomposition for n > 4
+        let decomp = PLUDecomposition::decompose(self, Some(tolerance));
+        if !decomp.is_invertible() {
+            return Err(MatrixError::DimensionMismatch);
+        }
+
+        // Preallocate result matrix and working buffers
+        let mut result_data = vec![T::zero(); n * k];
+        let mut work_perm = vec![T::zero(); n];
+        let mut work_y = vec![T::zero(); n];
+        let mut work_x = vec![T::zero(); n];
+        let mut b_col = vec![T::zero(); n];
+
+        // Solve for each column of B
+        for col_idx in 0..k {
+            // Extract column from B
+            for row in 0..n {
+                b_col[row] = b.get(row, col_idx);
+            }
+
+            // Solve A x = b_col
+            decomp.solve(&b_col, &mut work_perm, &mut work_y, &mut work_x);
+
+            // Write solution into result matrix (column col_idx)
+            for row in 0..n {
+                result_data[row * k + col_idx] = work_x[row].clone();
+            }
+        }
+
+        Ok(Matrix::new(n, k, result_data))
     }
 
     /// Matrix exponentiation with support for negative exponents.

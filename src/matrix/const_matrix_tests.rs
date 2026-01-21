@@ -1133,3 +1133,312 @@ fn inverse_4x4_singular_returns_none() {
     ]);
     assert!(m.inverse().is_none()); // Singular matrix
 }
+
+// ============================================================================
+// Linear System Solver Tests for ConstMatrix
+// ============================================================================
+
+#[test]
+fn solve_3x3_vector_rhs() {
+    let a: ConstMatrix<f64, 3, 3> = ConstMatrix::new(vec![
+        2.0, 1.0, 1.0,
+        4.0, 3.0, 3.0,
+        8.0, 7.0, 9.0,
+    ]);
+    let b: ConstMatrix<f64, 3, 1> = ConstMatrix::new(vec![4.0, 10.0, 24.0]);
+    let x = a.try_solve(&b).unwrap();
+
+    // Verify: A * x ≈ b
+    let result = &a * &x;
+    assert!(result.approx_eq(&b, 1e-10));
+
+    // Also verify element-wise
+    assert!((result.get(0, 0) - b.get(0, 0)).abs() < 1e-10);
+    assert!((result.get(1, 0) - b.get(1, 0)).abs() < 1e-10);
+    assert!((result.get(2, 0) - b.get(2, 0)).abs() < 1e-10);
+}
+
+#[test]
+fn solve_3x3_matrix_rhs_multiple_columns() {
+    let a: ConstMatrix<f64, 3, 3> = ConstMatrix::new(vec![
+        2.0, 1.0, 1.0,
+        4.0, 3.0, 3.0,
+        8.0, 7.0, 9.0,
+    ]);
+    let b: ConstMatrix<f64, 3, 2> = ConstMatrix::new(vec![
+        4.0, 1.0,
+        10.0, 2.0,
+        24.0, 3.0,
+    ]);
+    let x = a.try_solve(&b).unwrap();
+
+    // Verify: A * X ≈ B
+    let result = &a * &x;
+    assert!(result.approx_eq(&b, 1e-10));
+}
+
+#[test]
+fn solve_2x2_vector_rhs() {
+    let a: ConstMatrix<f64, 2, 2> = ConstMatrix::new(vec![1.0, 2.0, 3.0, 4.0]);
+    let b: ConstMatrix<f64, 2, 1> = ConstMatrix::new(vec![5.0, 11.0]);
+    let x = a.try_solve(&b).unwrap();
+
+    // Expected solution: x = [1.0, 2.0]
+    assert!((x.get(0, 0) - 1.0).abs() < 1e-10);
+    assert!((x.get(1, 0) - 2.0).abs() < 1e-10);
+
+    // Verify: A * x ≈ b
+    let result = &a * &x;
+    assert!((result.get(0, 0) - b.get(0, 0)).abs() < 1e-10);
+    assert!((result.get(1, 0) - b.get(1, 0)).abs() < 1e-10);
+}
+
+#[test]
+fn solve_5x5_vector_rhs_uses_dynamic_solver() {
+    // N=5 > 4, so this uses the dynamic Matrix solver path
+    let a: ConstMatrix<f64, 5, 5> = ConstMatrix::new(vec![
+        4.0, 1.0, 0.0, 0.0, 1.0,
+        1.0, 4.0, 1.0, 0.0, 0.0,
+        0.0, 1.0, 4.0, 1.0, 0.0,
+        0.0, 0.0, 1.0, 4.0, 1.0,
+        1.0, 0.0, 0.0, 1.0, 4.0,
+    ]);
+    let b: ConstMatrix<f64, 5, 1> = ConstMatrix::new(vec![6.0, 6.0, 6.0, 6.0, 6.0]);
+    let x = a.try_solve(&b).unwrap();
+
+    // Verify: A * x ≈ b
+    let result = &a * &x;
+    for i in 0..5 {
+        assert!((result.get(i, 0) - b.get(i, 0)).abs() < 1e-10);
+    }
+}
+
+#[test]
+fn solve_1x1_vector_rhs() {
+    let a: ConstMatrix<f64, 1, 1> = ConstMatrix::new(vec![2.0]);
+    let b: ConstMatrix<f64, 1, 1> = ConstMatrix::new(vec![6.0]);
+    let x = a.try_solve(&b).unwrap();
+
+    // Expected: x = 6.0 / 2.0 = 3.0
+    assert!((x.get(0, 0) - 3.0).abs() < 1e-10);
+}
+
+#[test]
+fn solve_singular_matrix_error() {
+    let a: ConstMatrix<f64, 2, 2> = ConstMatrix::new(vec![1.0, 2.0, 2.0, 4.0]);
+    let b: ConstMatrix<f64, 2, 1> = ConstMatrix::new(vec![1.0, 2.0]);
+
+    assert_eq!(a.try_solve(&b).unwrap_err(), MatrixError::DimensionMismatch);
+}
+
+#[test]
+fn solve_nearly_singular_with_different_tolerances() {
+    // Create a nearly singular matrix
+    let a: ConstMatrix<f64, 2, 2> = ConstMatrix::new(vec![1.0, 1.0, 1.0, 1.0 + 1e-10]);
+    let b: ConstMatrix<f64, 2, 1> = ConstMatrix::new(vec![2.0, 2.0 + 1e-10]);
+
+    // With strict tolerance, should accept
+    let x = a.try_solve_with_tol(&b, 1e-12);
+    assert!(x.is_ok());
+
+    // With loose tolerance, should reject
+    let result = a.try_solve_with_tol(&b, 1e-8);
+    assert_eq!(result.unwrap_err(), MatrixError::DimensionMismatch);
+}
+
+#[test]
+fn solve_with_custom_tolerance() {
+    let a: ConstMatrix<f64, 2, 2> = ConstMatrix::new(vec![1.0, 2.0, 3.0, 4.0]);
+    let b: ConstMatrix<f64, 2, 1> = ConstMatrix::new(vec![5.0, 11.0]);
+    let x = a.try_solve_with_tol(&b, 1e-12).unwrap();
+
+    // Verify solution
+    assert!((x.get(0, 0) - 1.0).abs() < 1e-10);
+    assert!((x.get(1, 0) - 2.0).abs() < 1e-10);
+}
+
+#[test]
+#[should_panic(expected = "Matrix must be invertible")]
+fn solve_panics_on_singular_matrix() {
+    let a: ConstMatrix<f64, 2, 2> = ConstMatrix::new(vec![1.0, 2.0, 2.0, 4.0]);
+    let b: ConstMatrix<f64, 2, 1> = ConstMatrix::new(vec![1.0, 2.0]);
+    let _ = a.solve(&b); // Should panic
+}
+
+#[test]
+fn solve_4x4_uses_existing_inverse() {
+    let a: ConstMatrix<f64, 4, 4> = ConstMatrix::new(vec![
+        1.0, 0.0, 0.0, 0.0,
+        0.0, 2.0, 0.0, 0.0,
+        0.0, 0.0, 3.0, 0.0,
+        0.0, 0.0, 0.0, 4.0,
+    ]);
+    let b: ConstMatrix<f64, 4, 1> = ConstMatrix::new(vec![2.0, 4.0, 6.0, 8.0]);
+    let x = a.try_solve(&b).unwrap();
+
+    // Expected: [2.0, 2.0, 2.0, 2.0]
+    assert!((x.get(0, 0) - 2.0).abs() < 1e-10);
+    assert!((x.get(1, 0) - 2.0).abs() < 1e-10);
+    assert!((x.get(2, 0) - 2.0).abs() < 1e-10);
+    assert!((x.get(3, 0) - 2.0).abs() < 1e-10);
+}
+
+#[test]
+fn solve_5x5_matrix_rhs() {
+    // Test N>4 with multiple RHS columns
+    let a: ConstMatrix<f64, 5, 5> = ConstMatrix::new(vec![
+        4.0, 1.0, 0.0, 0.0, 1.0,
+        1.0, 4.0, 1.0, 0.0, 0.0,
+        0.0, 1.0, 4.0, 1.0, 0.0,
+        0.0, 0.0, 1.0, 4.0, 1.0,
+        1.0, 0.0, 0.0, 1.0, 4.0,
+    ]);
+    let b: ConstMatrix<f64, 5, 2> = ConstMatrix::new(vec![
+        6.0, 1.0,
+        6.0, 2.0,
+        6.0, 3.0,
+        6.0, 4.0,
+        6.0, 5.0,
+    ]);
+    let x = a.try_solve(&b).unwrap();
+
+    // Verify: A * X ≈ B
+    let result = &a * &x;
+    for i in 0..5 {
+        for j in 0..2 {
+            assert!((result.get(i, j) - b.get(i, j)).abs() < 1e-10);
+        }
+    }
+}
+
+#[test]
+fn solve_1x1_singular_error() {
+    let a: ConstMatrix<f64, 1, 1> = ConstMatrix::new(vec![0.0]);
+    let b: ConstMatrix<f64, 1, 1> = ConstMatrix::new(vec![1.0]);
+
+    assert_eq!(a.try_solve(&b).unwrap_err(), MatrixError::DimensionMismatch);
+}
+
+#[test]
+fn solve_wrapper_methods_work() {
+    let a: ConstMatrix<f64, 2, 2> = ConstMatrix::new(vec![1.0, 2.0, 3.0, 4.0]);
+    let b: ConstMatrix<f64, 2, 1> = ConstMatrix::new(vec![5.0, 11.0]);
+
+    // solve() should work
+    let x1 = a.solve(&b);
+    assert!((x1.get(0, 0) - 1.0).abs() < 1e-10);
+
+    // solve_with_tol() should work
+    let x2 = a.solve_with_tol(&b, 1e-12);
+    assert!((x2.get(0, 0) - 1.0).abs() < 1e-10);
+}
+
+#[test]
+fn solve_3x3_with_custom_tolerance_accepts_strict() {
+    // Create a nearly singular 3x3 matrix
+    let a: ConstMatrix<f64, 3, 3> = ConstMatrix::new(vec![
+        1.0, 0.0, 0.0,
+        0.0, 1.0, 0.0,
+        0.0, 0.0, 1e-10,  // Very small determinant contributor
+    ]);
+    let b: ConstMatrix<f64, 3, 1> = ConstMatrix::new(vec![1.0, 1.0, 1.0]);
+
+    // With strict tolerance, should accept
+    let x = a.try_solve_with_tol(&b, 1e-12);
+    assert!(x.is_ok());
+
+    // With loose tolerance, should reject
+    let result = a.try_solve_with_tol(&b, 1e-8);
+    assert_eq!(result.unwrap_err(), MatrixError::DimensionMismatch);
+}
+
+#[test]
+fn solve_4x4_with_custom_tolerance_accepts_strict() {
+    // Create a nearly singular 4x4 matrix
+    let a: ConstMatrix<f64, 4, 4> = ConstMatrix::new(vec![
+        1.0, 0.0, 0.0, 0.0,
+        0.0, 1.0, 0.0, 0.0,
+        0.0, 0.0, 1.0, 0.0,
+        0.0, 0.0, 0.0, 1e-10,  // Very small determinant contributor
+    ]);
+    let b: ConstMatrix<f64, 4, 1> = ConstMatrix::new(vec![1.0, 1.0, 1.0, 1.0]);
+
+    // With strict tolerance, should accept
+    let x = a.try_solve_with_tol(&b, 1e-12);
+    assert!(x.is_ok());
+
+    // With loose tolerance, should reject
+    let result = a.try_solve_with_tol(&b, 1e-8);
+    assert_eq!(result.unwrap_err(), MatrixError::DimensionMismatch);
+}
+
+#[test]
+fn inverse_3x3_with_tol_uses_custom_tolerance() {
+    let m: ConstMatrix<f64, 3, 3> = ConstMatrix::new(vec![
+        1.0, 0.0, 0.0,
+        0.0, 1.0, 0.0,
+        0.0, 0.0, 1e-10,
+    ]);
+
+    // With strict tolerance, should return Some
+    assert!(m.inverse_with_tol(1e-12).is_some());
+
+    // With loose tolerance, should return None
+    assert!(m.inverse_with_tol(1e-8).is_none());
+}
+
+#[test]
+fn inverse_4x4_with_tol_uses_custom_tolerance() {
+    let m: ConstMatrix<f64, 4, 4> = ConstMatrix::new(vec![
+        1.0, 0.0, 0.0, 0.0,
+        0.0, 1.0, 0.0, 0.0,
+        0.0, 0.0, 1.0, 0.0,
+        0.0, 0.0, 0.0, 1e-10,
+    ]);
+
+    // With strict tolerance, should return Some
+    assert!(m.inverse_with_tol(1e-12).is_some());
+
+    // With loose tolerance, should return None
+    assert!(m.inverse_with_tol(1e-8).is_none());
+}
+
+#[test]
+fn solve_3x3_verifies_custom_tolerance_actually_used() {
+    // Create a matrix that's invertible but with a small determinant
+    // det = 1 * (1 * 1e-9 - 0) = 1e-9
+    let a: ConstMatrix<f64, 3, 3> = ConstMatrix::new(vec![
+        1.0, 0.0, 0.0,
+        0.0, 1.0, 0.0,
+        0.0, 0.0, 1e-9,
+    ]);
+    let b: ConstMatrix<f64, 3, 1> = ConstMatrix::new(vec![2.0, 3.0, 1e-9]);
+
+    // Tolerance 1e-10 < |det| = 1e-9, so should succeed
+    let x1 = a.try_solve_with_tol(&b, 1e-10);
+    assert!(x1.is_ok());
+
+    // Tolerance 1e-8 > |det| = 1e-9, so should fail
+    let x2 = a.try_solve_with_tol(&b, 1e-8);
+    assert_eq!(x2.unwrap_err(), MatrixError::DimensionMismatch);
+}
+
+#[test]
+fn solve_4x4_verifies_custom_tolerance_actually_used() {
+    // Create a matrix with determinant = 1e-9
+    let a: ConstMatrix<f64, 4, 4> = ConstMatrix::new(vec![
+        1.0, 0.0, 0.0, 0.0,
+        0.0, 1.0, 0.0, 0.0,
+        0.0, 0.0, 1.0, 0.0,
+        0.0, 0.0, 0.0, 1e-9,
+    ]);
+    let b: ConstMatrix<f64, 4, 1> = ConstMatrix::new(vec![2.0, 3.0, 4.0, 1e-9]);
+
+    // Tolerance 1e-10 < |det| = 1e-9, so should succeed
+    let x1 = a.try_solve_with_tol(&b, 1e-10);
+    assert!(x1.is_ok());
+
+    // Tolerance 1e-8 > |det| = 1e-9, so should fail
+    let x2 = a.try_solve_with_tol(&b, 1e-8);
+    assert_eq!(x2.unwrap_err(), MatrixError::DimensionMismatch);
+}
