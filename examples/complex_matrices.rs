@@ -8,14 +8,18 @@ fn main() {
     println!("1. Matrix Creation");
 
     // Complex<f64> matrix
-    let a = Matrix::new(2, 3, vec![
-        Complex::new(1.0, 1.0),  // 1 + i
-        Complex::new(2.0, 0.0),  // 2
-        Complex::new(0.0, 3.0),  // 3i
-        Complex::new(4.0, -1.0), // 4 - i
-        Complex::new(5.0, 2.0),  // 5 + 2i
-        Complex::new(1.0, 1.0),  // 1 + i
-    ]);
+    let a = Matrix::new(
+        2,
+        3,
+        vec![
+            Complex::new(1.0, 1.0),  // 1 + i
+            Complex::new(2.0, 0.0),  // 2
+            Complex::new(0.0, 3.0),  // 3i
+            Complex::new(4.0, -1.0), // 4 - i
+            Complex::new(5.0, 2.0),  // 5 + 2i
+            Complex::new(1.0, 1.0),  // 1 + i
+        ],
+    );
     println!("Complex matrix A (2x3):");
     print_matrix(&a);
 
@@ -54,7 +58,7 @@ fn main() {
 
     let mut b = Matrix::<Complex<f64>>::zero(2, 2);
     b.set(0, 0, Complex::new(1.0, 0.0));
-    b.set(0, 1, Complex::new(0.0, 1.0));  // i
+    b.set(0, 1, Complex::new(0.0, 1.0)); // i
     b.set(1, 0, Complex::new(-1.0, 0.0)); // -1
     b.set(1, 1, Complex::new(0.0, -1.0)); // -i
     println!("Modified matrix B:");
@@ -70,18 +74,26 @@ fn main() {
     // ==================== Arithmetic Operations ====================
     println!("\n5. Arithmetic Operations");
 
-    let c = Matrix::new(2, 2, vec![
-        Complex::new(1.0, 1.0),
-        Complex::new(2.0, 0.0),
-        Complex::new(0.0, 1.0),
-        Complex::new(3.0, 2.0),
-    ]);
-    let d = Matrix::new(2, 2, vec![
-        Complex::new(1.0, -1.0),
-        Complex::new(2.0, 1.0),
-        Complex::new(1.0, 0.0),
-        Complex::new(0.0, 1.0),
-    ]);
+    let c = Matrix::new(
+        2,
+        2,
+        vec![
+            Complex::new(1.0, 1.0),
+            Complex::new(2.0, 0.0),
+            Complex::new(0.0, 1.0),
+            Complex::new(3.0, 2.0),
+        ],
+    );
+    let d = Matrix::new(
+        2,
+        2,
+        vec![
+            Complex::new(1.0, -1.0),
+            Complex::new(2.0, 1.0),
+            Complex::new(1.0, 0.0),
+            Complex::new(0.0, 1.0),
+        ],
+    );
 
     println!("Matrix C:");
     print_matrix(&c);
@@ -137,12 +149,16 @@ fn main() {
     println!("Determinant of C: {}", det_c);
 
     // Interesting complex matrix
-    let unitary_like = Matrix::new(2, 2, vec![
-        Complex::new(1.0, 0.0),
-        Complex::new(0.0, 1.0),  // i
-        Complex::new(0.0, -1.0), // -i
-        Complex::new(1.0, 0.0),
-    ]);
+    let unitary_like = Matrix::new(
+        2,
+        2,
+        vec![
+            Complex::new(1.0, 0.0),
+            Complex::new(0.0, 1.0),  // i
+            Complex::new(0.0, -1.0), // -i
+            Complex::new(1.0, 0.0),
+        ],
+    );
     println!("Unitary-like matrix:");
     print_matrix(&unitary_like);
     println!("Determinant: {}", unitary_like.determinant());
@@ -154,28 +170,42 @@ fn main() {
     println!("Is zero matrix invertible? {}", zero.is_invertible());
 
     // Nearly singular complex matrix
-    let nearly_singular = Matrix::new(2, 2, vec![
-        Complex::new(1.0, 0.0),
-        Complex::new(2.0, 0.0),
-        Complex::new(1.0, 0.0000001),
-        Complex::new(2.0, 0.0),
-    ]);
+    let nearly_singular = Matrix::new(
+        2,
+        2,
+        vec![
+            Complex::new(1.0, 0.0),
+            Complex::new(2.0, 0.0),
+            Complex::new(1.0, 0.0000001),
+            Complex::new(2.0, 0.0),
+        ],
+    );
     println!("Nearly singular matrix:");
     print_matrix(&nearly_singular);
-    println!("  Invertible (default tol)? {}", nearly_singular.is_invertible());
-    println!("  Invertible (tol=1e-3)? {}", nearly_singular.is_invertible_with_tol(1e-3));
+    println!(
+        "  Invertible (default tol)? {}",
+        nearly_singular.is_invertible()
+    );
+    println!(
+        "  Invertible (tol=1e-3)? {}",
+        nearly_singular.is_invertible_with_tol(1e-3)
+    );
 
     // ==================== Matrix Norms ====================
     println!("\n10. Matrix Norms");
 
-    let e = Matrix::new(2, 3, vec![
-        Complex::new(3.0, 0.0),
-        Complex::new(0.0, 4.0),  // 4i
-        Complex::new(0.0, 0.0),
-        Complex::new(5.0, 0.0),
-        Complex::new(0.0, 0.0),
-        Complex::new(3.0, 4.0),  // 3 + 4i (magnitude 5)
-    ]);
+    let e = Matrix::new(
+        2,
+        3,
+        vec![
+            Complex::new(3.0, 0.0),
+            Complex::new(0.0, 4.0), // 4i
+            Complex::new(0.0, 0.0),
+            Complex::new(5.0, 0.0),
+            Complex::new(0.0, 0.0),
+            Complex::new(3.0, 4.0), // 3 + 4i (magnitude 5)
+        ],
+    );
     println!("Matrix E:");
     print_matrix(&e);
 
@@ -188,16 +218,24 @@ fn main() {
     println!("\n11. Cross Product (3D Complex Vectors)");
 
     // Complex vectors
-    let cv1 = Matrix::new(3, 1, vec![
-        Complex::new(1.0, 0.0),  // 1
-        Complex::new(0.0, 1.0),  // i
-        Complex::new(0.0, 0.0),  // 0
-    ]);
-    let cv2 = Matrix::new(3, 1, vec![
-        Complex::new(0.0, 0.0),  // 0
-        Complex::new(1.0, 0.0),  // 1
-        Complex::new(0.0, 1.0),  // i
-    ]);
+    let cv1 = Matrix::new(
+        3,
+        1,
+        vec![
+            Complex::new(1.0, 0.0), // 1
+            Complex::new(0.0, 1.0), // i
+            Complex::new(0.0, 0.0), // 0
+        ],
+    );
+    let cv2 = Matrix::new(
+        3,
+        1,
+        vec![
+            Complex::new(0.0, 0.0), // 0
+            Complex::new(1.0, 0.0), // 1
+            Complex::new(0.0, 1.0), // i
+        ],
+    );
 
     println!("Complex vector v1 = (1, i, 0):");
     print_matrix(&cv1);
@@ -213,22 +251,36 @@ fn main() {
     let cv1_dot_result = cv1.dot(&c_cross);
     let cv2_dot_result = cv2.dot(&c_cross);
     println!("\nOrthogonality check:");
-    println!("v1 · (v1 × v2) = {} (magnitude: {:.10})",
-             cv1_dot_result, cv1_dot_result.norm());
-    println!("v2 · (v1 × v2) = {} (magnitude: {:.10})",
-             cv2_dot_result, cv2_dot_result.norm());
+    println!(
+        "v1 · (v1 × v2) = {} (magnitude: {:.10})",
+        cv1_dot_result,
+        cv1_dot_result.norm()
+    );
+    println!(
+        "v2 · (v1 × v2) = {} (magnitude: {:.10})",
+        cv2_dot_result,
+        cv2_dot_result.norm()
+    );
 
     // Real-valued complex vectors
-    let real_cv1 = Matrix::new(3, 1, vec![
-        Complex::new(2.0, 0.0),
-        Complex::new(3.0, 0.0),
-        Complex::new(4.0, 0.0),
-    ]);
-    let real_cv2 = Matrix::new(3, 1, vec![
-        Complex::new(5.0, 0.0),
-        Complex::new(6.0, 0.0),
-        Complex::new(7.0, 0.0),
-    ]);
+    let real_cv1 = Matrix::new(
+        3,
+        1,
+        vec![
+            Complex::new(2.0, 0.0),
+            Complex::new(3.0, 0.0),
+            Complex::new(4.0, 0.0),
+        ],
+    );
+    let real_cv2 = Matrix::new(
+        3,
+        1,
+        vec![
+            Complex::new(5.0, 0.0),
+            Complex::new(6.0, 0.0),
+            Complex::new(7.0, 0.0),
+        ],
+    );
     let real_cross = real_cv1.cross(&real_cv2).unwrap();
     println!("\nReal-valued complex vectors (2+0i, 3+0i, 4+0i) × (5+0i, 6+0i, 7+0i):");
     print_matrix(&real_cross);
@@ -237,18 +289,26 @@ fn main() {
     // ==================== Approximate Equality ====================
     println!("\n12. Approximate Equality");
 
-    let f1 = Matrix::new(2, 2, vec![
-        Complex::new(1.0, 1.0),
-        Complex::new(2.0, 0.0),
-        Complex::new(0.0, 1.0),
-        Complex::new(3.0, 2.0),
-    ]);
-    let f2 = Matrix::new(2, 2, vec![
-        Complex::new(1.0000001, 1.0),
-        Complex::new(2.0, 0.0000001),
-        Complex::new(0.0, 1.0),
-        Complex::new(3.0, 2.0),
-    ]);
+    let f1 = Matrix::new(
+        2,
+        2,
+        vec![
+            Complex::new(1.0, 1.0),
+            Complex::new(2.0, 0.0),
+            Complex::new(0.0, 1.0),
+            Complex::new(3.0, 2.0),
+        ],
+    );
+    let f2 = Matrix::new(
+        2,
+        2,
+        vec![
+            Complex::new(1.0000001, 1.0),
+            Complex::new(2.0, 0.0000001),
+            Complex::new(0.0, 1.0),
+            Complex::new(3.0, 2.0),
+        ],
+    );
 
     println!("F1 == F2 (exact)? {}", f1 == f2);
     println!("F1 ≈ F2 (tol=1e-3)? {}", f1.approx_eq(&f2, 1e-3));
@@ -257,16 +317,17 @@ fn main() {
     // ==================== Concatenation ====================
     println!("\n13. Matrix Concatenation");
 
-    let left = Matrix::new(2, 2, vec![
-        Complex::new(1.0, 0.0),
-        Complex::new(2.0, 0.0),
-        Complex::new(3.0, 0.0),
-        Complex::new(4.0, 0.0),
-    ]);
-    let right = Matrix::new(2, 1, vec![
-        Complex::new(0.0, 1.0),
-        Complex::new(0.0, 2.0),
-    ]);
+    let left = Matrix::new(
+        2,
+        2,
+        vec![
+            Complex::new(1.0, 0.0),
+            Complex::new(2.0, 0.0),
+            Complex::new(3.0, 0.0),
+            Complex::new(4.0, 0.0),
+        ],
+    );
+    let right = Matrix::new(2, 1, vec![Complex::new(0.0, 1.0), Complex::new(0.0, 2.0)]);
 
     println!("Left matrix:");
     print_matrix(&left);
@@ -277,16 +338,17 @@ fn main() {
     println!("Horizontal concatenation:");
     print_matrix(&h_concat);
 
-    let top = Matrix::new(2, 2, vec![
-        Complex::new(1.0, 0.0),
-        Complex::new(2.0, 0.0),
-        Complex::new(3.0, 0.0),
-        Complex::new(4.0, 0.0),
-    ]);
-    let bottom = Matrix::new(1, 2, vec![
-        Complex::new(5.0, 0.0),
-        Complex::new(6.0, 0.0),
-    ]);
+    let top = Matrix::new(
+        2,
+        2,
+        vec![
+            Complex::new(1.0, 0.0),
+            Complex::new(2.0, 0.0),
+            Complex::new(3.0, 0.0),
+            Complex::new(4.0, 0.0),
+        ],
+    );
+    let bottom = Matrix::new(1, 2, vec![Complex::new(5.0, 0.0), Complex::new(6.0, 0.0)]);
 
     let v_concat = top.with_rows(&bottom);
     println!("Vertical concatenation:");
@@ -295,14 +357,18 @@ fn main() {
     // ==================== Checked APIs ====================
     println!("\n14. Checked APIs (error handling)");
 
-    let g = Matrix::new(2, 3, vec![
-        Complex::new(1.0, 1.0),
-        Complex::new(2.0, 0.0),
-        Complex::new(3.0, 0.0),
-        Complex::new(4.0, -1.0),
-        Complex::new(5.0, 0.0),
-        Complex::new(6.0, 1.0),
-    ]);
+    let g = Matrix::new(
+        2,
+        3,
+        vec![
+            Complex::new(1.0, 1.0),
+            Complex::new(2.0, 0.0),
+            Complex::new(3.0, 0.0),
+            Complex::new(4.0, -1.0),
+            Complex::new(5.0, 0.0),
+            Complex::new(6.0, 1.0),
+        ],
+    );
 
     // Safe get
     match g.try_get(0, 1) {
@@ -330,18 +396,26 @@ fn main() {
     // ==================== Complex<f32> Examples ====================
     println!("\n15. Complex<f32> Examples (32-bit floats)");
 
-    let a_f32 = Matrix::new(2, 2, vec![
-        Complex::new(1.0f32, 1.0f32),
-        Complex::new(2.0f32, 0.0f32),
-        Complex::new(0.0f32, 1.0f32),
-        Complex::new(3.0f32, 2.0f32),
-    ]);
-    let b_f32 = Matrix::new(2, 2, vec![
-        Complex::new(1.0f32, -1.0f32),
-        Complex::new(2.0f32, 1.0f32),
-        Complex::new(1.0f32, 0.0f32),
-        Complex::new(0.0f32, 1.0f32),
-    ]);
+    let a_f32 = Matrix::new(
+        2,
+        2,
+        vec![
+            Complex::new(1.0f32, 1.0f32),
+            Complex::new(2.0f32, 0.0f32),
+            Complex::new(0.0f32, 1.0f32),
+            Complex::new(3.0f32, 2.0f32),
+        ],
+    );
+    let b_f32 = Matrix::new(
+        2,
+        2,
+        vec![
+            Complex::new(1.0f32, -1.0f32),
+            Complex::new(2.0f32, 1.0f32),
+            Complex::new(1.0f32, 0.0f32),
+            Complex::new(0.0f32, 1.0f32),
+        ],
+    );
 
     println!("Complex<f32> matrix A:");
     print_matrix(&a_f32);
@@ -362,36 +436,60 @@ fn main() {
     println!("\n16. Special Complex Matrices");
 
     // Pauli matrices (important in quantum mechanics)
-    let pauli_x = Matrix::new(2, 2, vec![
-        Complex::new(0.0, 0.0), Complex::new(1.0, 0.0),
-        Complex::new(1.0, 0.0), Complex::new(0.0, 0.0),
-    ]);
+    let pauli_x = Matrix::new(
+        2,
+        2,
+        vec![
+            Complex::new(0.0, 0.0),
+            Complex::new(1.0, 0.0),
+            Complex::new(1.0, 0.0),
+            Complex::new(0.0, 0.0),
+        ],
+    );
     println!("Pauli X matrix:");
     print_matrix(&pauli_x);
     println!("  Determinant: {}", pauli_x.determinant());
 
-    let pauli_y = Matrix::new(2, 2, vec![
-        Complex::new(0.0, 0.0),  Complex::new(0.0, -1.0),
-        Complex::new(0.0, 1.0),  Complex::new(0.0, 0.0),
-    ]);
+    let pauli_y = Matrix::new(
+        2,
+        2,
+        vec![
+            Complex::new(0.0, 0.0),
+            Complex::new(0.0, -1.0),
+            Complex::new(0.0, 1.0),
+            Complex::new(0.0, 0.0),
+        ],
+    );
     println!("Pauli Y matrix:");
     print_matrix(&pauli_y);
     println!("  Determinant: {}", pauli_y.determinant());
 
-    let pauli_z = Matrix::new(2, 2, vec![
-        Complex::new(1.0, 0.0),  Complex::new(0.0, 0.0),
-        Complex::new(0.0, 0.0),  Complex::new(-1.0, 0.0),
-    ]);
+    let pauli_z = Matrix::new(
+        2,
+        2,
+        vec![
+            Complex::new(1.0, 0.0),
+            Complex::new(0.0, 0.0),
+            Complex::new(0.0, 0.0),
+            Complex::new(-1.0, 0.0),
+        ],
+    );
     println!("Pauli Z matrix:");
     print_matrix(&pauli_z);
     println!("  Determinant: {}", pauli_z.determinant());
 
     // Hadamard gate (quantum computing)
     let sqrt2_inv = 1.0 / 2.0f64.sqrt();
-    let hadamard = Matrix::new(2, 2, vec![
-        Complex::new(sqrt2_inv, 0.0),   Complex::new(sqrt2_inv, 0.0),
-        Complex::new(sqrt2_inv, 0.0),   Complex::new(-sqrt2_inv, 0.0),
-    ]);
+    let hadamard = Matrix::new(
+        2,
+        2,
+        vec![
+            Complex::new(sqrt2_inv, 0.0),
+            Complex::new(sqrt2_inv, 0.0),
+            Complex::new(sqrt2_inv, 0.0),
+            Complex::new(-sqrt2_inv, 0.0),
+        ],
+    );
     println!("Hadamard gate:");
     print_matrix(&hadamard);
     println!("  Determinant: {}", hadamard.determinant());

@@ -1,22 +1,15 @@
-use spectralize::matrix::{ConstMatrix, Matrix};
+use spectralize::{ConstMatrix, Matrix};
 
 fn main() {
     println!("=== ConstMatrix Demo ===\n");
 
     // Create matrices with compile-time dimensions
     println!("1. Creating matrices:");
-    let a: ConstMatrix<f64, 2, 3> = ConstMatrix::new(vec![
-        1.0, 2.0, 3.0,
-        4.0, 5.0, 6.0,
-    ]);
+    let a: ConstMatrix<f64, 2, 3> = ConstMatrix::new(vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0]);
     println!("Matrix A (2x3):");
     print_matrix(&a);
 
-    let b: ConstMatrix<f64, 3, 2> = ConstMatrix::new(vec![
-        7.0, 8.0,
-        9.0, 10.0,
-        11.0, 12.0,
-    ]);
+    let b: ConstMatrix<f64, 3, 2> = ConstMatrix::new(vec![7.0, 8.0, 9.0, 10.0, 11.0, 12.0]);
     println!("Matrix B (3x2):");
     print_matrix(&b);
 
@@ -39,7 +32,11 @@ fn main() {
     // Conversion to/from dynamic Matrix
     println!("\n4. Conversions:");
     let dyn_mat: Matrix<f64> = a.clone().into();
-    println!("Converted to dynamic Matrix: {}x{}", dyn_mat.rows(), dyn_mat.cols());
+    println!(
+        "Converted to dynamic Matrix: {}x{}",
+        dyn_mat.rows(),
+        dyn_mat.cols()
+    );
 
     let const_mat: Result<ConstMatrix<f64, 2, 3>, _> = dyn_mat.try_into();
     println!("Converted back to ConstMatrix<2, 3>: {}", const_mat.is_ok());
@@ -58,7 +55,7 @@ fn main() {
 
 fn print_matrix<T: std::fmt::Display, const R: usize, const C: usize>(m: &ConstMatrix<T, R, C>)
 where
-    T: spectralize::matrix::MatrixElement + std::fmt::Debug,
+    T: spectralize::MatrixElement + std::fmt::Debug,
 {
     for row in 0..R {
         print!("  [");

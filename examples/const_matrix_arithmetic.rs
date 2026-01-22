@@ -1,18 +1,12 @@
-use spectralize::matrix::ConstMatrix;
+use spectralize::ConstMatrix;
 
 fn main() {
     println!("=== ConstMatrix Arithmetic Demo ===\n");
 
     // Addition with compile-time dimension checking
     println!("1. Addition (dimensions enforced at compile time):");
-    let a: ConstMatrix<i32, 2, 3> = ConstMatrix::new(vec![
-        1, 2, 3,
-        4, 5, 6,
-    ]);
-    let b: ConstMatrix<i32, 2, 3> = ConstMatrix::new(vec![
-        10, 20, 30,
-        40, 50, 60,
-    ]);
+    let a: ConstMatrix<i32, 2, 3> = ConstMatrix::new(vec![1, 2, 3, 4, 5, 6]);
+    let b: ConstMatrix<i32, 2, 3> = ConstMatrix::new(vec![10, 20, 30, 40, 50, 60]);
     println!("Matrix A:");
     print_matrix(&a);
     println!("Matrix B:");
@@ -34,15 +28,8 @@ fn main() {
 
     // Matrix multiplication with compile-time inner dimension checking
     println!("\n3. Matrix Multiplication (inner dimensions enforced):");
-    let m1: ConstMatrix<i32, 2, 3> = ConstMatrix::new(vec![
-        1, 2, 3,
-        4, 5, 6,
-    ]);
-    let m2: ConstMatrix<i32, 3, 2> = ConstMatrix::new(vec![
-        7, 8,
-        9, 10,
-        11, 12,
-    ]);
+    let m1: ConstMatrix<i32, 2, 3> = ConstMatrix::new(vec![1, 2, 3, 4, 5, 6]);
+    let m2: ConstMatrix<i32, 3, 2> = ConstMatrix::new(vec![7, 8, 9, 10, 11, 12]);
     println!("Matrix M1 (2x3):");
     print_matrix(&m1);
     println!("Matrix M2 (3x2):");
@@ -58,10 +45,7 @@ fn main() {
 
     // Scalar multiplication
     println!("\n4. Scalar Multiplication:");
-    let s1: ConstMatrix<f64, 2, 2> = ConstMatrix::new(vec![
-        1.0, 2.0,
-        3.0, 4.0,
-    ]);
+    let s1: ConstMatrix<f64, 2, 2> = ConstMatrix::new(vec![1.0, 2.0, 3.0, 4.0]);
     println!("Matrix S1:");
     print_matrix(&s1);
 
@@ -119,7 +103,7 @@ fn main() {
 
 fn print_matrix<T: std::fmt::Display, const R: usize, const C: usize>(m: &ConstMatrix<T, R, C>)
 where
-    T: spectralize::matrix::MatrixElement + std::fmt::Debug,
+    T: spectralize::MatrixElement + std::fmt::Debug,
 {
     for row in 0..R {
         print!("  [");

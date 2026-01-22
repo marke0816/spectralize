@@ -26,11 +26,7 @@ fn main() {
 
     // Example 3: General 3x3 matrix
     println!("Example 3: General 3x3 matrix");
-    let b = Matrix::new(3, 3, vec![
-        1.0, 2.0, 3.0,
-        0.0, 1.0, 4.0,
-        5.0, 6.0, 0.0,
-    ]);
+    let b = Matrix::new(3, 3, vec![1.0, 2.0, 3.0, 0.0, 1.0, 4.0, 5.0, 6.0, 0.0]);
     println!("B = {:?}", b);
 
     let b_neg_one = b.pow(-1);
@@ -56,7 +52,7 @@ fn main() {
     let c = Matrix::new(2, 2, vec![2.0f32, 0.0, 0.0, 3.0]);
     let c_neg_one = c.pow(-1);
     println!("C^(-1) = {:?}", c_neg_one);
-    let expected = Matrix::new(2, 2, vec![0.5f32, 0.0, 0.0, 1.0/3.0]);
+    let expected = Matrix::new(2, 2, vec![0.5f32, 0.0, 0.0, 1.0 / 3.0]);
     println!("Correct? {}\n", c_neg_one.approx_eq(&expected, 1e-5));
 
     // Example 6: Higher negative powers
@@ -68,7 +64,10 @@ fn main() {
     // Verify: D^3 * D^(-3) = I
     let d_cubed = d.pow(3);
     let product2 = &d_cubed * &d_neg_three;
-    println!("D^3 * D^(-3) ≈ I? {}\n", product2.approx_eq(&identity, 1e-10));
+    println!(
+        "D^3 * D^(-3) ≈ I? {}\n",
+        product2.approx_eq(&identity, 1e-10)
+    );
 
     println!("=== All examples completed successfully! ===");
 }

@@ -1,4 +1,6 @@
-use super::{Matrix, MatrixElement};
+use crate::traits::MatrixElement;
+
+use super::Matrix;
 
 impl<T: MatrixElement + std::fmt::Debug> Matrix<T> {
     /// Returns a new matrix formed by concatenating `self` and `other` horizontally.

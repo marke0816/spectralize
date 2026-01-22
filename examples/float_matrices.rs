@@ -7,10 +7,7 @@ fn main() {
     println!("1. Matrix Creation");
 
     // f64 matrix from vector
-    let a_f64 = Matrix::new(2, 3, vec![
-        1.0, 2.0, 3.0,
-        4.0, 5.0, 6.0,
-    ]);
+    let a_f64 = Matrix::new(2, 3, vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0]);
     println!("f64 matrix A (2x3):");
     print_matrix(&a_f64);
 
@@ -132,22 +129,22 @@ fn main() {
     println!("Is zero matrix invertible? {}", zero_f64.is_invertible());
 
     // Invertibility with custom tolerance
-    let nearly_singular = Matrix::new(2, 2, vec![
-        1.0, 2.0,
-        1.0, 2.0000001,
-    ]);
+    let nearly_singular = Matrix::new(2, 2, vec![1.0, 2.0, 1.0, 2.0000001]);
     println!("Nearly singular matrix:");
     print_matrix(&nearly_singular);
-    println!("  Invertible (default tol)? {}", nearly_singular.is_invertible());
-    println!("  Invertible (tol=1e-3)? {}", nearly_singular.is_invertible_with_tol(1e-3));
+    println!(
+        "  Invertible (default tol)? {}",
+        nearly_singular.is_invertible()
+    );
+    println!(
+        "  Invertible (tol=1e-3)? {}",
+        nearly_singular.is_invertible_with_tol(1e-3)
+    );
 
     // ==================== Matrix Norms ====================
     println!("\n10. Matrix Norms");
 
-    let e_f64 = Matrix::new(2, 3, vec![
-        3.0, 4.0, 0.0,
-        0.0, 0.0, 5.0,
-    ]);
+    let e_f64 = Matrix::new(2, 3, vec![3.0, 4.0, 0.0, 0.0, 0.0, 5.0]);
     println!("Matrix E:");
     print_matrix(&e_f64);
 
@@ -267,14 +264,8 @@ fn main() {
     // ==================== f32 Examples ====================
     println!("\n15. f32 Examples (32-bit floats)");
 
-    let a_f32 = Matrix::new(2, 2, vec![
-        1.0f32, 2.0f32,
-        3.0f32, 4.0f32,
-    ]);
-    let b_f32 = Matrix::new(2, 2, vec![
-        5.0f32, 6.0f32,
-        7.0f32, 8.0f32,
-    ]);
+    let a_f32 = Matrix::new(2, 2, vec![1.0f32, 2.0f32, 3.0f32, 4.0f32]);
+    let b_f32 = Matrix::new(2, 2, vec![5.0f32, 6.0f32, 7.0f32, 8.0f32]);
 
     println!("f32 matrix A:");
     print_matrix(&a_f32);

@@ -1,5 +1,7 @@
-use super::{Matrix, MatrixElement, MatrixError, NanCheck, ToleranceOps};
-use crate::matrix::norm::Abs;
+use crate::error::MatrixError;
+use crate::matrix::Matrix;
+use crate::traits::Abs;
+use crate::traits::{MatrixElement, NanCheck, PivotOrd, ToleranceOps};
 use std::ops::{Add, Div, Mul, Neg, Sub};
 
 // ============================================================================
@@ -79,7 +81,17 @@ where
     T: MatrixElement + Mul<Output = T> + Add<Output = T> + Sub<Output = T>,
 {
     // Extract 3×3 submatrix (stack-allocated, no heap allocation)
-    let mut sub = [T::zero(), T::zero(), T::zero(), T::zero(), T::zero(), T::zero(), T::zero(), T::zero(), T::zero()];
+    let mut sub = [
+        T::zero(),
+        T::zero(),
+        T::zero(),
+        T::zero(),
+        T::zero(),
+        T::zero(),
+        T::zero(),
+        T::zero(),
+        T::zero(),
+    ];
     let mut idx = 0;
 
     for row in 0..4 {
@@ -127,7 +139,12 @@ where
 #[inline]
 fn inverse_2x2<T>(data: &[T], tolerance: T::Abs) -> Option<Vec<T>>
 where
-    T: MatrixElement + Mul<Output = T> + Sub<Output = T> + Div<Output = T> + Neg<Output = T> + ToleranceOps,
+    T: MatrixElement
+        + Mul<Output = T>
+        + Sub<Output = T>
+        + Div<Output = T>
+        + Neg<Output = T>
+        + ToleranceOps,
     T::Abs: PartialOrd,
 {
     let det = determinant_2x2(data);
@@ -156,7 +173,13 @@ where
 #[inline]
 fn inverse_3x3<T>(data: &[T], tolerance: T::Abs) -> Option<Vec<T>>
 where
-    T: MatrixElement + Mul<Output = T> + Add<Output = T> + Sub<Output = T> + Div<Output = T> + Neg<Output = T> + ToleranceOps,
+    T: MatrixElement
+        + Mul<Output = T>
+        + Add<Output = T>
+        + Sub<Output = T>
+        + Div<Output = T>
+        + Neg<Output = T>
+        + ToleranceOps,
     T::Abs: PartialOrd,
 {
     let det = determinant_3x3(data);
@@ -208,7 +231,13 @@ where
 #[inline]
 fn inverse_4x4<T>(data: &[T], tolerance: T::Abs) -> Option<Vec<T>>
 where
-    T: MatrixElement + Mul<Output = T> + Add<Output = T> + Sub<Output = T> + Div<Output = T> + Neg<Output = T> + ToleranceOps,
+    T: MatrixElement
+        + Mul<Output = T>
+        + Add<Output = T>
+        + Sub<Output = T>
+        + Div<Output = T>
+        + Neg<Output = T>
+        + ToleranceOps,
     T::Abs: PartialOrd,
 {
     let det = determinant_4x4(data);
@@ -225,7 +254,11 @@ where
     for j in 0..4 {
         for i in 0..4 {
             let cofactor = cofactor_3x3_for_4x4(data, i, j);
-            let sign = if (i + j) % 2 == 0 { T::one() } else { -T::one() };
+            let sign = if (i + j) % 2 == 0 {
+                T::one()
+            } else {
+                -T::one()
+            };
             result.push((sign * cofactor) / det.clone());
         }
     }
@@ -413,149 +446,24 @@ pub struct PLUDecomposition<T: MatrixElement + std::fmt::Debug + ToleranceOps> {
 
 /// Trait for types that support magnitude comparison for pivoting.
 /// This is needed to find the largest absolute value element for partial pivoting.
-pub trait PivotOrd: Sized {
-    /// The type of the comparison key (e.g., Self for reals, f32/f64 for Complex)
-    type Key: PartialOrd;
-
-    /// Return a value suitable for pivot comparison (e.g., absolute value for signed types)
-    fn pivot_key(&self) -> Self::Key;
-}
 
 // For unsigned integers, the pivot key is the value itself
-impl PivotOrd for u8 {
-    type Key = Self;
-
-    fn pivot_key(&self) -> Self::Key {
-        *self
-    }
-}
-
-impl PivotOrd for u16 {
-    type Key = Self;
-
-    fn pivot_key(&self) -> Self::Key {
-        *self
-    }
-}
-
-impl PivotOrd for u32 {
-    type Key = Self;
-
-    fn pivot_key(&self) -> Self::Key {
-        *self
-    }
-}
-
-impl PivotOrd for u64 {
-    type Key = Self;
-
-    fn pivot_key(&self) -> Self::Key {
-        *self
-    }
-}
-
-impl PivotOrd for u128 {
-    type Key = Self;
-
-    fn pivot_key(&self) -> Self::Key {
-        *self
-    }
-}
-
-impl PivotOrd for usize {
-    type Key = Self;
-
-    fn pivot_key(&self) -> Self::Key {
-        *self
-    }
-}
 
 // For signed integers, the pivot key is the absolute value
-impl PivotOrd for i8 {
-    type Key = Self;
-
-    fn pivot_key(&self) -> Self::Key {
-        self.saturating_abs()
-    }
-}
-
-impl PivotOrd for i16 {
-    type Key = Self;
-
-    fn pivot_key(&self) -> Self::Key {
-        self.saturating_abs()
-    }
-}
-
-impl PivotOrd for i32 {
-    type Key = Self;
-
-    fn pivot_key(&self) -> Self::Key {
-        self.saturating_abs()
-    }
-}
-
-impl PivotOrd for i64 {
-    type Key = Self;
-
-    fn pivot_key(&self) -> Self::Key {
-        self.saturating_abs()
-    }
-}
-
-impl PivotOrd for i128 {
-    type Key = Self;
-
-    fn pivot_key(&self) -> Self::Key {
-        self.saturating_abs()
-    }
-}
-
-impl PivotOrd for isize {
-    type Key = Self;
-
-    fn pivot_key(&self) -> Self::Key {
-        self.saturating_abs()
-    }
-}
 
 // For floating point, use absolute value
-impl PivotOrd for f32 {
-    type Key = Self;
-
-    fn pivot_key(&self) -> Self::Key {
-        self.abs()
-    }
-}
-
-impl PivotOrd for f64 {
-    type Key = Self;
-
-    fn pivot_key(&self) -> Self::Key {
-        self.abs()
-    }
-}
 
 // For complex numbers, use magnitude (norm) as the key
-impl PivotOrd for num_complex::Complex<f32> {
-    type Key = f32;
-
-    fn pivot_key(&self) -> Self::Key {
-        self.norm()
-    }
-}
-
-impl PivotOrd for num_complex::Complex<f64> {
-    type Key = f64;
-
-    fn pivot_key(&self) -> Self::Key {
-        self.norm()
-    }
-}
 
 impl<T> PLUDecomposition<T>
 where
-    T: MatrixElement + std::fmt::Debug + ToleranceOps + PivotOrd + Div<Output = T> + Mul<Output = T> + Sub<Output = T>,
+    T: MatrixElement
+        + std::fmt::Debug
+        + ToleranceOps
+        + PivotOrd
+        + Div<Output = T>
+        + Mul<Output = T>
+        + Sub<Output = T>,
     T::Abs: Mul<Output = T::Abs>,
 {
     /// Compute PLU decomposition with partial pivoting and optional tolerance.
@@ -758,8 +666,8 @@ where
                 // (entries to the left are already processed or will store L)
                 for j in (k + 1)..n {
                     let idx = i * cols + j;
-                    let update = data[idx].clone()
-                        - (multiplier.clone() * data[k * cols + j].clone());
+                    let update =
+                        data[idx].clone() - (multiplier.clone() * data[k * cols + j].clone());
                     data[idx] = update;
                 }
             }
@@ -841,8 +749,16 @@ where
         T: Add<Output = T>,
     {
         let n = self.lu.rows();
-        debug_assert_eq!(b.len(), n, "Right-hand side length must match matrix dimension");
-        debug_assert_eq!(work_perm.len(), n, "Working vector work_perm must have size n");
+        debug_assert_eq!(
+            b.len(),
+            n,
+            "Right-hand side length must match matrix dimension"
+        );
+        debug_assert_eq!(
+            work_perm.len(),
+            n,
+            "Working vector work_perm must have size n"
+        );
         debug_assert_eq!(work_y.len(), n, "Working vector work_y must have size n");
         debug_assert_eq!(x.len(), n, "Working vector x must have size n");
 
@@ -1023,7 +939,15 @@ where
     /// ```
     pub fn is_invertible(&self) -> bool
     where
-        T: ToleranceOps + PivotOrd + Div<Output = T> + Mul<Output = T> + Add<Output = T> + Sub<Output = T> + Neg<Output = T> + Clone + Abs<Output = T::Abs>,
+        T: ToleranceOps
+            + PivotOrd
+            + Div<Output = T>
+            + Mul<Output = T>
+            + Add<Output = T>
+            + Sub<Output = T>
+            + Neg<Output = T>
+            + Clone
+            + Abs<Output = T::Abs>,
         T::Abs: MatrixElement + Add<Output = T::Abs> + Mul<Output = T::Abs> + PartialOrd + NanCheck,
     {
         let n = self.rows;
@@ -1122,7 +1046,15 @@ where
     /// ```
     pub fn is_invertible_with_tol(&self, tolerance: T::Abs) -> bool
     where
-        T: ToleranceOps + PivotOrd + Div<Output = T> + Mul<Output = T> + Add<Output = T> + Sub<Output = T> + Neg<Output = T> + Clone + Abs<Output = T::Abs>,
+        T: ToleranceOps
+            + PivotOrd
+            + Div<Output = T>
+            + Mul<Output = T>
+            + Add<Output = T>
+            + Sub<Output = T>
+            + Neg<Output = T>
+            + Clone
+            + Abs<Output = T::Abs>,
         T::Abs: MatrixElement + Add<Output = T::Abs> + Mul<Output = T::Abs> + PartialOrd + NanCheck,
     {
         let n = self.rows;
@@ -1200,13 +1132,18 @@ where
     /// ```
     pub fn determinant(&self) -> T
     where
-        T: ToleranceOps + PivotOrd + Div<Output = T> + Mul<Output = T> + Add<Output = T> + Sub<Output = T> + Neg<Output = T> + Clone + Abs<Output = T::Abs>,
+        T: ToleranceOps
+            + PivotOrd
+            + Div<Output = T>
+            + Mul<Output = T>
+            + Add<Output = T>
+            + Sub<Output = T>
+            + Neg<Output = T>
+            + Clone
+            + Abs<Output = T::Abs>,
         T::Abs: MatrixElement + Add<Output = T::Abs> + Mul<Output = T::Abs> + PartialOrd + NanCheck,
     {
-        assert_eq!(
-            self.rows, self.cols,
-            "Determinant requires a square matrix"
-        );
+        assert_eq!(self.rows, self.cols, "Determinant requires a square matrix");
 
         let n = self.rows;
 
@@ -1286,13 +1223,18 @@ where
     /// ```
     pub fn determinant_with_tol(&self, tolerance: T::Abs) -> T
     where
-        T: ToleranceOps + PivotOrd + Div<Output = T> + Mul<Output = T> + Add<Output = T> + Sub<Output = T> + Neg<Output = T> + Clone + Abs<Output = T::Abs>,
+        T: ToleranceOps
+            + PivotOrd
+            + Div<Output = T>
+            + Mul<Output = T>
+            + Add<Output = T>
+            + Sub<Output = T>
+            + Neg<Output = T>
+            + Clone
+            + Abs<Output = T::Abs>,
         T::Abs: MatrixElement + Add<Output = T::Abs> + Mul<Output = T::Abs> + PartialOrd + NanCheck,
     {
-        assert_eq!(
-            self.rows, self.cols,
-            "Determinant requires a square matrix"
-        );
+        assert_eq!(self.rows, self.cols, "Determinant requires a square matrix");
 
         let n = self.rows;
 
@@ -1666,7 +1608,15 @@ where
     /// ```
     pub fn plu(&self) -> Result<PLUDecomposition<T>, MatrixError>
     where
-        T: ToleranceOps + PivotOrd + Div<Output = T> + Mul<Output = T> + Add<Output = T> + Sub<Output = T> + Neg<Output = T> + Clone + Abs<Output = T::Abs>,
+        T: ToleranceOps
+            + PivotOrd
+            + Div<Output = T>
+            + Mul<Output = T>
+            + Add<Output = T>
+            + Sub<Output = T>
+            + Neg<Output = T>
+            + Clone
+            + Abs<Output = T::Abs>,
         T::Abs: MatrixElement + Add<Output = T::Abs> + Mul<Output = T::Abs> + PartialOrd + NanCheck,
     {
         if self.rows != self.cols {
@@ -1704,7 +1654,15 @@ where
     /// ```
     pub fn plu_with_tol(&self, tolerance: T::Abs) -> Result<PLUDecomposition<T>, MatrixError>
     where
-        T: ToleranceOps + PivotOrd + Div<Output = T> + Mul<Output = T> + Add<Output = T> + Sub<Output = T> + Neg<Output = T> + Clone + Abs<Output = T::Abs>,
+        T: ToleranceOps
+            + PivotOrd
+            + Div<Output = T>
+            + Mul<Output = T>
+            + Add<Output = T>
+            + Sub<Output = T>
+            + Neg<Output = T>
+            + Clone
+            + Abs<Output = T::Abs>,
         T::Abs: MatrixElement + Add<Output = T::Abs> + Mul<Output = T::Abs> + PartialOrd + NanCheck,
     {
         if self.rows != self.cols {
@@ -1744,10 +1702,19 @@ where
     /// ```
     pub fn solve(&self, b: &[T]) -> Vec<T>
     where
-        T: ToleranceOps + PivotOrd + Div<Output = T> + Mul<Output = T> + Add<Output = T> + Sub<Output = T> + Neg<Output = T> + Clone + Abs<Output = T::Abs>,
+        T: ToleranceOps
+            + PivotOrd
+            + Div<Output = T>
+            + Mul<Output = T>
+            + Add<Output = T>
+            + Sub<Output = T>
+            + Neg<Output = T>
+            + Clone
+            + Abs<Output = T::Abs>,
         T::Abs: MatrixElement + Add<Output = T::Abs> + Mul<Output = T::Abs> + PartialOrd + NanCheck,
     {
-        self.try_solve(b).expect("Matrix must be square, invertible, and dimensions must match")
+        self.try_solve(b)
+            .expect("Matrix must be square, invertible, and dimensions must match")
     }
 
     /// Solve the linear system Ax = b using default tolerance.
@@ -1776,7 +1743,15 @@ where
     /// ```
     pub fn try_solve(&self, b: &[T]) -> Result<Vec<T>, MatrixError>
     where
-        T: ToleranceOps + PivotOrd + Div<Output = T> + Mul<Output = T> + Add<Output = T> + Sub<Output = T> + Neg<Output = T> + Clone + Abs<Output = T::Abs>,
+        T: ToleranceOps
+            + PivotOrd
+            + Div<Output = T>
+            + Mul<Output = T>
+            + Add<Output = T>
+            + Sub<Output = T>
+            + Neg<Output = T>
+            + Clone
+            + Abs<Output = T::Abs>,
         T::Abs: MatrixElement + Add<Output = T::Abs> + Mul<Output = T::Abs> + PartialOrd + NanCheck,
     {
         // Check dimensions
@@ -1836,10 +1811,19 @@ where
     /// ```
     pub fn solve_with_tol(&self, b: &[T], tolerance: T::Abs) -> Vec<T>
     where
-        T: ToleranceOps + PivotOrd + Div<Output = T> + Mul<Output = T> + Add<Output = T> + Sub<Output = T> + Neg<Output = T> + Clone + Abs<Output = T::Abs>,
+        T: ToleranceOps
+            + PivotOrd
+            + Div<Output = T>
+            + Mul<Output = T>
+            + Add<Output = T>
+            + Sub<Output = T>
+            + Neg<Output = T>
+            + Clone
+            + Abs<Output = T::Abs>,
         T::Abs: MatrixElement + Add<Output = T::Abs> + Mul<Output = T::Abs> + PartialOrd + NanCheck,
     {
-        self.try_solve_with_tol(b, tolerance).expect("Matrix must be square, invertible, and dimensions must match")
+        self.try_solve_with_tol(b, tolerance)
+            .expect("Matrix must be square, invertible, and dimensions must match")
     }
 
     /// Solve the linear system Ax = b using a custom tolerance.
@@ -1864,7 +1848,15 @@ where
     /// ```
     pub fn try_solve_with_tol(&self, b: &[T], tolerance: T::Abs) -> Result<Vec<T>, MatrixError>
     where
-        T: ToleranceOps + PivotOrd + Div<Output = T> + Mul<Output = T> + Add<Output = T> + Sub<Output = T> + Neg<Output = T> + Clone + Abs<Output = T::Abs>,
+        T: ToleranceOps
+            + PivotOrd
+            + Div<Output = T>
+            + Mul<Output = T>
+            + Add<Output = T>
+            + Sub<Output = T>
+            + Neg<Output = T>
+            + Clone
+            + Abs<Output = T::Abs>,
         T::Abs: MatrixElement + Add<Output = T::Abs> + Mul<Output = T::Abs> + PartialOrd + NanCheck,
     {
         // Check dimensions
@@ -1933,7 +1925,15 @@ where
     /// ```
     pub fn try_solve_matrix(&self, b: &Matrix<T>) -> Result<Matrix<T>, MatrixError>
     where
-        T: ToleranceOps + PivotOrd + Div<Output = T> + Mul<Output = T> + Add<Output = T> + Sub<Output = T> + Neg<Output = T> + Clone + Abs<Output = T::Abs>,
+        T: ToleranceOps
+            + PivotOrd
+            + Div<Output = T>
+            + Mul<Output = T>
+            + Add<Output = T>
+            + Sub<Output = T>
+            + Neg<Output = T>
+            + Clone
+            + Abs<Output = T::Abs>,
         T::Abs: MatrixElement + Add<Output = T::Abs> + Mul<Output = T::Abs> + PartialOrd + NanCheck,
     {
         // Check dimensions
@@ -2015,9 +2015,21 @@ where
     /// let result = &a * &x;
     /// assert!(result.approx_eq(&b, 1e-10));
     /// ```
-    pub fn try_solve_matrix_with_tol(&self, b: &Matrix<T>, tolerance: T::Abs) -> Result<Matrix<T>, MatrixError>
+    pub fn try_solve_matrix_with_tol(
+        &self,
+        b: &Matrix<T>,
+        tolerance: T::Abs,
+    ) -> Result<Matrix<T>, MatrixError>
     where
-        T: ToleranceOps + PivotOrd + Div<Output = T> + Mul<Output = T> + Add<Output = T> + Sub<Output = T> + Neg<Output = T> + Clone + Abs<Output = T::Abs>,
+        T: ToleranceOps
+            + PivotOrd
+            + Div<Output = T>
+            + Mul<Output = T>
+            + Add<Output = T>
+            + Sub<Output = T>
+            + Neg<Output = T>
+            + Clone
+            + Abs<Output = T::Abs>,
         T::Abs: MatrixElement + Add<Output = T::Abs> + Mul<Output = T::Abs> + PartialOrd + NanCheck,
     {
         // Check dimensions
@@ -2104,7 +2116,14 @@ where
     /// ```
     pub fn pow(&self, n: i32) -> Matrix<T>
     where
-        T: Mul<Output = T> + Add<Output = T> + ToleranceOps + PivotOrd + Div<Output = T> + Sub<Output = T> + Neg<Output = T> + Abs<Output = T::Abs>,
+        T: Mul<Output = T>
+            + Add<Output = T>
+            + ToleranceOps
+            + PivotOrd
+            + Div<Output = T>
+            + Sub<Output = T>
+            + Neg<Output = T>
+            + Abs<Output = T::Abs>,
         T::Abs: MatrixElement + Add<Output = T::Abs> + Mul<Output = T::Abs> + PartialOrd + NanCheck,
     {
         assert_eq!(
@@ -2150,7 +2169,14 @@ where
     /// ```
     pub fn try_pow(&self, n: i32) -> Result<Matrix<T>, MatrixError>
     where
-        T: Mul<Output = T> + Add<Output = T> + ToleranceOps + PivotOrd + Div<Output = T> + Sub<Output = T> + Neg<Output = T> + Abs<Output = T::Abs>,
+        T: Mul<Output = T>
+            + Add<Output = T>
+            + ToleranceOps
+            + PivotOrd
+            + Div<Output = T>
+            + Sub<Output = T>
+            + Neg<Output = T>
+            + Abs<Output = T::Abs>,
         T::Abs: MatrixElement + Add<Output = T::Abs> + Mul<Output = T::Abs> + PartialOrd + NanCheck,
     {
         if self.rows != self.cols {

@@ -1,5 +1,7 @@
-use super::{Matrix, MatrixElement};
+use crate::traits::MatrixElement;
 use std::ops::{Add, Mul, Sub};
+
+use super::Matrix;
 
 fn mul_with_transposed<T>(lhs: &Matrix<T>, rhs_t: &Matrix<T>) -> Matrix<T>
 where
@@ -405,11 +407,11 @@ where
     /// Returns `MatrixError::DimensionMismatch` if:
     /// - Either matrix is not a 3-element vector (not 3×1 or 1×3)
     /// - The matrices have different shapes (one row, one column)
-    pub fn cross(&self, other: &Matrix<T>) -> Result<Matrix<T>, crate::matrix::MatrixError>
+    pub fn cross(&self, other: &Matrix<T>) -> Result<Matrix<T>, crate::error::MatrixError>
     where
         T: Mul<Output = T> + Sub<Output = T>,
     {
-        use crate::matrix::MatrixError;
+        use crate::error::MatrixError;
 
         // Check that both matrices are 3-element vectors
         let self_is_col = self.rows == 3 && self.cols == 1;

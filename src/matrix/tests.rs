@@ -1,4 +1,5 @@
 use super::*;
+use crate::error::MatrixError;
 
 fn sample_matrix() -> Matrix<f64> {
     Matrix::new(3, 3, vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0])
@@ -83,10 +84,7 @@ fn test_try_trace_pow() {
     );
 
     assert!(square.try_pow(2).is_ok());
-    assert_eq!(
-        rect.try_pow(2).unwrap_err(),
-        MatrixError::DimensionMismatch
-    );
+    assert_eq!(rect.try_pow(2).unwrap_err(), MatrixError::DimensionMismatch);
 }
 
 #[test]
@@ -175,16 +173,14 @@ fn test_perm_duplicate_index() {
 
 #[test]
 fn test_try_perm_errors() {
-    let err = Matrix::<f64>::try_perm(3, 3, vec![1, 2])
-        .expect_err("expected length mismatch");
+    let err = Matrix::<f64>::try_perm(3, 3, vec![1, 2]).expect_err("expected length mismatch");
     assert_eq!(err, MatrixError::PermutationLengthMismatch);
 
-    let err = Matrix::<f64>::try_perm(3, 3, vec![1, 2, 4])
-        .expect_err("expected index out of bounds");
+    let err =
+        Matrix::<f64>::try_perm(3, 3, vec![1, 2, 4]).expect_err("expected index out of bounds");
     assert_eq!(err, MatrixError::PermutationIndexOutOfBounds);
 
-    let err = Matrix::<f64>::try_perm(3, 3, vec![1, 1, 2])
-        .expect_err("expected duplicate index");
+    let err = Matrix::<f64>::try_perm(3, 3, vec![1, 1, 2]).expect_err("expected duplicate index");
     assert_eq!(err, MatrixError::PermutationDuplicateIndex);
 }
 
@@ -469,11 +465,7 @@ mod complex_tests {
 
     #[test]
     fn test_complex_approx_eq() {
-        let a = Matrix::new(
-            1,
-            2,
-            vec![Complex::new(1.0, 1.0), Complex::new(2.0, 2.0)],
-        );
+        let a = Matrix::new(1, 2, vec![Complex::new(1.0, 1.0), Complex::new(2.0, 2.0)]);
         let b = Matrix::new(
             1,
             2,
@@ -783,7 +775,13 @@ mod multiplication_tests {
     fn test_mul_different_dimensions() {
         // 1x3 * 3x4 = 1x4
         let a = Matrix::new(1, 3, vec![1.0, 2.0, 3.0]);
-        let b = Matrix::new(3, 4, vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0, 11.0, 12.0]);
+        let b = Matrix::new(
+            3,
+            4,
+            vec![
+                1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0, 11.0, 12.0,
+            ],
+        );
         let c = a * b;
         // [1 2 3] * [1 2 3 4  ] = [38 44 50 56]
         //           [5 6 7 8  ]
@@ -1035,11 +1033,11 @@ mod exponentiation_tests {
         let a_neg_two = a.pow(-2);
 
         // Expected: diag(1/4, 1/9, 1/16)
-        let expected = Matrix::new(3, 3, vec![
-            0.25, 0.0, 0.0,
-            0.0, 1.0/9.0, 0.0,
-            0.0, 0.0, 0.0625
-        ]);
+        let expected = Matrix::new(
+            3,
+            3,
+            vec![0.25, 0.0, 0.0, 0.0, 1.0 / 9.0, 0.0, 0.0, 0.0, 0.0625],
+        );
 
         assert!(a_neg_two.approx_eq(&expected, 1e-10));
     }
@@ -1061,7 +1059,7 @@ mod exponentiation_tests {
     fn test_try_pow_negative_success() {
         let a = Matrix::new(2, 2, vec![2.0, 0.0, 0.0, 3.0]);
         let a_neg_one = a.try_pow(-1).unwrap();
-        let expected = Matrix::new(2, 2, vec![0.5, 0.0, 0.0, 1.0/3.0]);
+        let expected = Matrix::new(2, 2, vec![0.5, 0.0, 0.0, 1.0 / 3.0]);
 
         assert!(a_neg_one.approx_eq(&expected, 1e-10));
     }
@@ -1070,7 +1068,7 @@ mod exponentiation_tests {
     fn test_pow_negative_f32() {
         let a = Matrix::new(2, 2, vec![2.0f32, 0.0, 0.0, 3.0]);
         let a_neg_one = a.pow(-1);
-        let expected = Matrix::new(2, 2, vec![0.5f32, 0.0, 0.0, 1.0/3.0]);
+        let expected = Matrix::new(2, 2, vec![0.5f32, 0.0, 0.0, 1.0 / 3.0]);
 
         assert!(a_neg_one.approx_eq(&expected, 1e-5));
     }
@@ -1096,7 +1094,7 @@ mod exponentiation_tests {
                 Complex::new(0.5, 0.0),
                 Complex::new(0.0, 0.0),
                 Complex::new(0.0, 0.0),
-                Complex::new(1.0/3.0, 0.0),
+                Complex::new(1.0 / 3.0, 0.0),
             ],
         );
 
@@ -1177,7 +1175,9 @@ mod dot_product_tests {
     }
 
     #[test]
-    #[should_panic(expected = "Matrices must have the same total number of elements for dot product")]
+    #[should_panic(
+        expected = "Matrices must have the same total number of elements for dot product"
+    )]
     fn test_dot_different_sizes() {
         let a = Matrix::new(1, 3, vec![1.0, 2.0, 3.0]);
         let b = Matrix::new(1, 4, vec![4.0, 5.0, 6.0, 7.0]);
@@ -1203,16 +1203,8 @@ mod dot_product_tests {
     #[test]
     fn test_dot_complex() {
         use num_complex::Complex;
-        let a = Matrix::new(
-            1,
-            2,
-            vec![Complex::new(1.0, 1.0), Complex::new(2.0, 0.0)],
-        );
-        let b = Matrix::new(
-            1,
-            2,
-            vec![Complex::new(1.0, -1.0), Complex::new(3.0, 0.0)],
-        );
+        let a = Matrix::new(1, 2, vec![Complex::new(1.0, 1.0), Complex::new(2.0, 0.0)]);
+        let b = Matrix::new(1, 2, vec![Complex::new(1.0, -1.0), Complex::new(3.0, 0.0)]);
         let result = a.dot(&b);
         // (1+i)*(1-i) + 2*3 = 2 + 6 = 8
         assert_eq!(result, Complex::new(8.0, 0.0));
@@ -1328,17 +1320,21 @@ mod scalar_multiplication_tests {
 
     #[test]
     fn test_scalar_mul_different_sizes() {
-        let a = Matrix::new(3, 4, vec![
-            1.0, 2.0, 3.0, 4.0,
-            5.0, 6.0, 7.0, 8.0,
-            9.0, 10.0, 11.0, 12.0
-        ]);
+        let a = Matrix::new(
+            3,
+            4,
+            vec![
+                1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0, 11.0, 12.0,
+            ],
+        );
         let c = &a * 2.0;
-        let expected = Matrix::new(3, 4, vec![
-            2.0, 4.0, 6.0, 8.0,
-            10.0, 12.0, 14.0, 16.0,
-            18.0, 20.0, 22.0, 24.0
-        ]);
+        let expected = Matrix::new(
+            3,
+            4,
+            vec![
+                2.0, 4.0, 6.0, 8.0, 10.0, 12.0, 14.0, 16.0, 18.0, 20.0, 22.0, 24.0,
+            ],
+        );
         assert_eq!(c, expected);
     }
 
@@ -1713,16 +1709,8 @@ mod outer_product_tests {
     #[test]
     fn test_outer_complex() {
         use num_complex::Complex;
-        let a = Matrix::new(
-            1,
-            2,
-            vec![Complex::new(1.0, 1.0), Complex::new(2.0, 0.0)],
-        );
-        let b = Matrix::new(
-            1,
-            2,
-            vec![Complex::new(1.0, 0.0), Complex::new(0.0, 1.0)],
-        );
+        let a = Matrix::new(1, 2, vec![Complex::new(1.0, 1.0), Complex::new(2.0, 0.0)]);
+        let b = Matrix::new(1, 2, vec![Complex::new(1.0, 0.0), Complex::new(0.0, 1.0)]);
         let result = a.outer(&b);
         // [1+i  i-1]
         // [2    2i ]
@@ -1817,7 +1805,11 @@ mod decomposition_tests {
         //                                         = -24 + 40 - 15 = 1
         let m = Matrix::new(3, 3, vec![1.0, 2.0, 3.0, 0.0, 1.0, 4.0, 5.0, 6.0, 0.0]);
         let det = m.determinant();
-        assert!((det - 1.0f64).abs() < 1e-10f64, "Expected determinant ~1.0, got {}", det);
+        assert!(
+            (det - 1.0f64).abs() < 1e-10f64,
+            "Expected determinant ~1.0, got {}",
+            det
+        );
     }
 
     #[test]
@@ -1884,10 +1876,7 @@ mod decomposition_tests {
             4,
             4,
             vec![
-                2.0, 0.0, 0.0, 1.0,
-                0.0, 3.0, 0.0, 0.0,
-                0.0, 0.0, 4.0, 0.0,
-                1.0, 0.0, 0.0, 2.0,
+                2.0, 0.0, 0.0, 1.0, 0.0, 3.0, 0.0, 0.0, 0.0, 0.0, 4.0, 0.0, 1.0, 0.0, 0.0, 2.0,
             ],
         );
         // det = 2*(3*4*2 - 0) - 1*(0 - 3*4*1) = 2*24 - 1*(-12) = 48 + 12 = 60
@@ -2075,9 +2064,16 @@ mod decomposition_tests {
         let diag = Matrix::new(3, 3, vec![2.0, 0.0, 0.0, 0.0, 3.0, 0.0, 0.0, 0.0, 4.0]);
         let diag_inv = diag.inverse();
 
-        let expected = Matrix::new(3, 3, vec![0.5, 0.0, 0.0, 0.0, 1.0 / 3.0, 0.0, 0.0, 0.0, 0.25]);
+        let expected = Matrix::new(
+            3,
+            3,
+            vec![0.5, 0.0, 0.0, 0.0, 1.0 / 3.0, 0.0, 0.0, 0.0, 0.25],
+        );
 
-        assert!(diag_inv.approx_eq(&expected, 1e-10), "Diagonal matrix inverse incorrect");
+        assert!(
+            diag_inv.approx_eq(&expected, 1e-10),
+            "Diagonal matrix inverse incorrect"
+        );
     }
 
     #[test]
@@ -2132,10 +2128,7 @@ mod decomposition_tests {
 
         // With loose tolerance, should fail
         let result = nearly_singular.try_inverse_with_tol(1e-8);
-        assert!(
-            result.is_err(),
-            "Should be singular with loose tolerance"
-        );
+        assert!(result.is_err(), "Should be singular with loose tolerance");
     }
 
     #[test]
@@ -2237,7 +2230,10 @@ mod decomposition_tests {
         let a_inv = a.inverse();
 
         let expected = Matrix::new(1, 1, vec![0.2]);
-        assert!(a_inv.approx_eq(&expected, 1e-10), "1x1 inverse should be reciprocal");
+        assert!(
+            a_inv.approx_eq(&expected, 1e-10),
+            "1x1 inverse should be reciprocal"
+        );
     }
 
     #[test]
@@ -2644,7 +2640,10 @@ mod norm_tests {
         let singular = Matrix::new(2, 2, vec![2i32, 4i32, 2i32, 4i32]);
         let is_inv = singular.is_invertible();
         let det = singular.determinant();
-        println!("Singular integer matrix: is_invertible={}, determinant={}", is_inv, det);
+        println!(
+            "Singular integer matrix: is_invertible={}, determinant={}",
+            is_inv, det
+        );
         assert!(!is_inv, "Singular integer matrix should not be invertible");
         assert_eq!(det, 0);
 
@@ -2671,7 +2670,10 @@ mod norm_tests {
 
         // The determinant should be extremely small or zero
         // Depending on exact tolerance computation, might be zero or tiny
-        println!("Nearly singular: is_invertible={}, determinant={}", is_inv, det);
+        println!(
+            "Nearly singular: is_invertible={}, determinant={}",
+            is_inv, det
+        );
         assert!(det.abs() < 1e-10); // Extremely small or zero
     }
 
@@ -2734,7 +2736,10 @@ mod norm_tests {
         let is_inv = nearly_singular_f32.is_invertible();
         let det = nearly_singular_f32.determinant();
 
-        println!("f32 nearly singular: is_invertible={}, determinant={}", is_inv, det);
+        println!(
+            "f32 nearly singular: is_invertible={}, determinant={}",
+            is_inv, det
+        );
 
         // With very strict tolerance, should be invertible
         assert!(nearly_singular_f32.is_invertible_with_tol(1e-10f32));
@@ -2789,15 +2794,7 @@ mod norm_tests {
     #[test]
     fn test_3x3_tolerance() {
         // Well-conditioned 3x3 matrix
-        let m = Matrix::new(
-            3,
-            3,
-            vec![
-                1.0, 2.0, 3.0,
-                0.0, 1.0, 4.0,
-                5.0, 6.0, 0.0,
-            ],
-        );
+        let m = Matrix::new(3, 3, vec![1.0, 2.0, 3.0, 0.0, 1.0, 4.0, 5.0, 6.0, 0.0]);
 
         assert!(m.is_invertible());
         let det: f64 = m.determinant();
@@ -2809,9 +2806,15 @@ mod norm_tests {
             3,
             3,
             vec![
-                1.0, 2.0, 3.0,
-                0.0, 1.0, 4.0,
-                1.0 + 1e-10, 3.0 + 1e-10, 7.0 + 1e-10,
+                1.0,
+                2.0,
+                3.0,
+                0.0,
+                1.0,
+                4.0,
+                1.0 + 1e-10,
+                3.0 + 1e-10,
+                7.0 + 1e-10,
             ],
         );
 
@@ -2849,7 +2852,10 @@ mod norm_tests {
         let det: f64 = unstable.determinant();
         let is_inv = unstable.is_invertible();
 
-        println!("Unstable matrix: is_invertible={}, determinant={}", is_inv, det);
+        println!(
+            "Unstable matrix: is_invertible={}, determinant={}",
+            is_inv, det
+        );
 
         // The key property: we should NOT get a wildly inaccurate determinant
         // Either we return 0 (singular) or a value close to the true value (≈1e-14)
@@ -2980,8 +2986,8 @@ mod norm_tests {
         let a_dot_c = a.dot(&c);
         let b_dot_c = b.dot(&c);
 
-        assert!(a_dot_c.abs() < 1e-10, "a · (a × b) should be 0");
-        assert!(b_dot_c.abs() < 1e-10, "b · (a × b) should be 0");
+        assert!(f64::abs(a_dot_c) < 1e-10, "a · (a × b) should be 0");
+        assert!(f64::abs(b_dot_c) < 1e-10, "b · (a × b) should be 0");
     }
 
     /// Test cross product of parallel vectors gives zero vector
@@ -3149,16 +3155,16 @@ mod norm_tests {
         let x = a.try_solve(&b).unwrap();
 
         // Expected solution: x = [1.0, 2.0]
-        assert!((x[0] - 1.0).abs() < 1e-10);
-        assert!((x[1] - 2.0).abs() < 1e-10);
+        assert!(f64::abs(x[0] - 1.0) < 1e-10);
+        assert!(f64::abs(x[1] - 2.0) < 1e-10);
 
         // Verify: A * x ≈ b
         let result = vec![
             a.get(0, 0) * x[0] + a.get(0, 1) * x[1],
             a.get(1, 0) * x[0] + a.get(1, 1) * x[1],
         ];
-        assert!((result[0] - b[0]).abs() < 1e-10);
-        assert!((result[1] - b[1]).abs() < 1e-10);
+        assert!(f64::abs(result[0] - b[0]) < 1e-10);
+        assert!(f64::abs(result[1] - b[1]) < 1e-10);
     }
 
     /// Test solving 3x3 system with vector RHS
@@ -3179,7 +3185,7 @@ mod norm_tests {
         }
 
         for i in 0..3 {
-            assert!((result[i] - b[i]).abs() < 1e-10);
+            assert!(f64::abs(result[i] - b[i]) < 1e-10);
         }
     }
 
@@ -3208,7 +3214,7 @@ mod norm_tests {
         }
 
         for i in 0..5 {
-            assert!((result[i] - b[i]).abs() < 1e-10);
+            assert!(f64::abs(result[i] - b[i]) < 1e-10);
         }
     }
 
@@ -3220,8 +3226,8 @@ mod norm_tests {
         let x = a.try_solve_with_tol(&b, 1e-12).unwrap();
 
         // Verify solution
-        assert!((x[0] - 1.0).abs() < 1e-10);
-        assert!((x[1] - 2.0).abs() < 1e-10);
+        assert!(f64::abs(x[0] - 1.0) < 1e-10);
+        assert!(f64::abs(x[1] - 2.0) < 1e-10);
     }
 
     /// Test dimension mismatch: non-square matrix
@@ -3281,11 +3287,7 @@ mod norm_tests {
     #[test]
     fn test_solve_matrix_3x3_multiple_rhs() {
         let a = Matrix::new(3, 3, vec![2.0, 1.0, 1.0, 4.0, 3.0, 3.0, 8.0, 7.0, 9.0]);
-        let b = Matrix::new(
-            3,
-            3,
-            vec![4.0, 1.0, 0.0, 10.0, 2.0, 1.0, 24.0, 3.0, 2.0],
-        );
+        let b = Matrix::new(3, 3, vec![4.0, 1.0, 0.0, 10.0, 2.0, 1.0, 24.0, 3.0, 2.0]);
         let x = a.try_solve_matrix(&b).unwrap();
 
         // Verify: A * X ≈ B
@@ -3358,7 +3360,7 @@ mod norm_tests {
             result1[i] = sum;
         }
         for i in 0..3 {
-            assert!((result1[i] - b1[i]).abs() < 1e-10);
+            assert!(f64::abs(result1[i] - b1[i]) < 1e-10);
         }
 
         // Solve second system
@@ -3375,7 +3377,7 @@ mod norm_tests {
             result2[i] = sum;
         }
         for i in 0..3 {
-            assert!((result2[i] - b2[i]).abs() < 1e-10);
+            assert!(f64::abs(result2[i] - b2[i]) < 1e-10);
         }
     }
 
@@ -3394,8 +3396,8 @@ mod norm_tests {
         let b1 = vec![5.0, 11.0];
         plu.solve_vec_into(&b1, &mut x, &mut work_perm, &mut work_y)
             .unwrap();
-        assert!((x[0] - 1.0).abs() < 1e-10);
-        assert!((x[1] - 2.0).abs() < 1e-10);
+        assert!(f64::abs(x[0] - 1.0) < 1e-10);
+        assert!(f64::abs(x[1] - 2.0) < 1e-10);
 
         // Solve second system (reusing buffers)
         let b2 = vec![1.0, 2.0];
@@ -3406,8 +3408,8 @@ mod norm_tests {
             a.get(0, 0) * x[0] + a.get(0, 1) * x[1],
             a.get(1, 0) * x[0] + a.get(1, 1) * x[1],
         ];
-        assert!((result[0] - b2[0]).abs() < 1e-10);
-        assert!((result[1] - b2[1]).abs() < 1e-10);
+        assert!(f64::abs(result[0] - b2[0]) < 1e-10);
+        assert!(f64::abs(result[1] - b2[1]) < 1e-10);
     }
 
     /// Test PLU decomposition with custom tolerance
@@ -3419,8 +3421,8 @@ mod norm_tests {
         let b = vec![5.0, 11.0];
         let x = plu.solve_vec(&b).unwrap();
 
-        assert!((x[0] - 1.0).abs() < 1e-10);
-        assert!((x[1] - 2.0).abs() < 1e-10);
+        assert!(f64::abs(x[0] - 1.0) < 1e-10);
+        assert!(f64::abs(x[1] - 2.0) < 1e-10);
     }
 
     /// Test PLU decomposition error: non-square matrix

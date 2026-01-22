@@ -1045,23 +1045,49 @@ cargo test scalar_multiplication
 
 ## Project Structure
 
+The codebase is organized into focused modules with clear responsibilities:
+
 ```
 src/
-├── lib.rs                    # Public API exports (includes PLUDecomposition)
-└── matrix/
-    ├── mod.rs                # Core Matrix struct and basic operations
-    ├── const_matrix.rs       # ConstMatrix with compile-time dimensions (~1700 lines)
-    ├── const_matrix_tests.rs # ConstMatrix test suite (124 tests)
-    ├── element.rs            # MatrixElement trait and implementations
-    ├── arithmetic.rs         # Arithmetic operations (Add, Sub, Mul, cross product, etc.)
-    ├── append.rs             # Matrix concatenation operations
-    ├── decomposition.rs      # PLU decomposition, linear system solving, determinant, and invertibility
-    ├── norm.rs               # Matrix norms (Frobenius, 1-norm, infinity norm)
-    └── tests.rs              # Matrix test suite (250 tests)
+├── lib.rs                       # Public API re-exports
+├── error.rs                     # MatrixError type
+│
+├── traits/                      # Core trait definitions (~900 lines)
+│   ├── mod.rs                   # Module exports
+│   ├── element.rs               # MatrixElement trait + implementations
+│   ├── tolerance.rs             # ToleranceOps, NanCheck traits
+│   ├── norm.rs                  # Abs, Sqrt traits for norms
+│   └── pivot.rs                 # PivotOrd trait for pivoting
+│
+├── matrix/                      # Dynamic Matrix (runtime dimensions)
+│   ├── mod.rs                   # Module organization
+│   ├── core.rs                  # Matrix struct definition
+│   ├── constructors.rs          # new, zero, identity, perm
+│   ├── access.rs                # get, set, row, col, transpose, trace
+│   ├── arithmetic.rs            # Operator overloads, dot, outer, cross
+│   ├── append.rs                # Matrix concatenation operations
+│   ├── norms.rs                 # Frobenius, 1-norm, infinity norm
+│   └── tests.rs                 # Matrix test suite (277 tests)
+│
+├── const_matrix/                # ConstMatrix (compile-time dimensions)
+│   ├── mod.rs                   # ConstMatrix struct + helpers
+│   ├── constructors.rs          # Constructors for const dimensions
+│   ├── access.rs                # Accessors + operations
+│   ├── arithmetic.rs            # Operator overloads
+│   ├── linalg.rs                # Determinant, inverse, solve
+│   └── conversions.rs           # Matrix ↔ ConstMatrix conversions
+│
+└── linalg/                      # Linear algebra algorithms
+    ├── mod.rs                   # Module exports
+    └── decomposition_unified.rs # PLU, determinant, inverse, solve, pow
+                                 # (will be further split in future)
+
 examples/
 ├── float_matrices.rs           # Float operations (f32, f64)
 ├── integer_matrices.rs         # Integer operations (i32, i64)
 ├── complex_matrices.rs         # Complex number operations
+├── inverse_demo.rs             # Matrix inversion examples
+├── pow_negative_demo.rs        # Negative exponent examples
 ├── const_matrix_demo.rs        # ConstMatrix basics
 └── const_matrix_arithmetic.rs  # ConstMatrix arithmetic with type safety
 ```

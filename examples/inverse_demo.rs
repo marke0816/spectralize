@@ -16,11 +16,7 @@ fn main() {
 
     // Example 2: 3x3 matrix with custom tolerance
     println!("\n=== Example 2: 3x3 matrix inverse ===");
-    let b = Matrix::new(3, 3, vec![
-        1.0, 2.0, 3.0,
-        0.0, 1.0, 4.0,
-        5.0, 6.0, 0.0,
-    ]);
+    let b = Matrix::new(3, 3, vec![1.0, 2.0, 3.0, 0.0, 1.0, 4.0, 5.0, 6.0, 0.0]);
     println!("B = \n{:?}", b);
 
     let b_inv = b.inverse();
@@ -55,18 +51,22 @@ fn main() {
 
     // Example 5: Larger matrix (5x5)
     println!("\n=== Example 5: 5x5 lower triangular matrix ===");
-    let large = Matrix::new(5, 5, vec![
-        1.0, 0.0, 0.0, 0.0, 0.0,
-        2.0, 1.0, 0.0, 0.0, 0.0,
-        3.0, 2.0, 1.0, 0.0, 0.0,
-        4.0, 3.0, 2.0, 1.0, 0.0,
-        5.0, 4.0, 3.0, 2.0, 1.0,
-    ]);
+    let large = Matrix::new(
+        5,
+        5,
+        vec![
+            1.0, 0.0, 0.0, 0.0, 0.0, 2.0, 1.0, 0.0, 0.0, 0.0, 3.0, 2.0, 1.0, 0.0, 0.0, 4.0, 3.0,
+            2.0, 1.0, 0.0, 5.0, 4.0, 3.0, 2.0, 1.0,
+        ],
+    );
 
     let large_inv = large.inverse();
     let verify = &large * &large_inv;
     let identity_5 = Matrix::identity(5, 5);
-    println!("5x5 matrix correctly inverted: {}", verify.approx_eq(&identity_5, 1e-10));
+    println!(
+        "5x5 matrix correctly inverted: {}",
+        verify.approx_eq(&identity_5, 1e-10)
+    );
 
     println!("\n=== All examples completed successfully! ===");
 }

@@ -7,10 +7,7 @@ fn main() {
     println!("1. Matrix Creation");
 
     // i32 matrix from vector
-    let a_i32 = Matrix::new(2, 3, vec![
-        1, 2, 3,
-        4, 5, 6,
-    ]);
+    let a_i32 = Matrix::new(2, 3, vec![1, 2, 3, 4, 5, 6]);
     println!("i32 matrix A (2x3):");
     print_matrix(&a_i32);
 
@@ -128,11 +125,7 @@ fn main() {
     println!("Determinant of C: {}", det_c);
 
     // Example: 3x3 matrix
-    let e_i32 = Matrix::new(3, 3, vec![
-        1, 2, 3,
-        0, 1, 4,
-        5, 6, 0,
-    ]);
+    let e_i32 = Matrix::new(3, 3, vec![1, 2, 3, 0, 1, 4, 5, 6, 0]);
     println!("Matrix E (3x3):");
     print_matrix(&e_i32);
     let det_e = e_i32.determinant();
@@ -145,10 +138,7 @@ fn main() {
     println!("Is zero matrix invertible? {}", zero_i32.is_invertible());
 
     // Singular integer matrix
-    let singular = Matrix::new(2, 2, vec![
-        2, 4,
-        1, 2,
-    ]);
+    let singular = Matrix::new(2, 2, vec![2, 4, 1, 2]);
     println!("Singular matrix:");
     print_matrix(&singular);
     println!("  Is invertible? {}", singular.is_invertible());
@@ -157,10 +147,7 @@ fn main() {
     // ==================== Matrix Norms ====================
     println!("\n10. Matrix Norms");
 
-    let f_i32 = Matrix::new(2, 3, vec![
-        3, 4, 0,
-        0, 0, 5,
-    ]);
+    let f_i32 = Matrix::new(2, 3, vec![3, 4, 0, 0, 0, 5]);
     println!("Matrix F:");
     print_matrix(&f_i32);
 
@@ -206,7 +193,12 @@ fn main() {
     print_matrix(&point2);
     println!("p1 × p2 (normal vector, exact):");
     print_matrix(&normal);
-    println!("Result: ({}, {}, {})", normal.get(0, 0), normal.get(1, 0), normal.get(2, 0));
+    println!(
+        "Result: ({}, {}, {})",
+        normal.get(0, 0),
+        normal.get(1, 0),
+        normal.get(2, 0)
+    );
 
     // Anti-commutativity: a × b = -(b × a)
     let reverse = point2.cross(&point1).unwrap();
@@ -285,14 +277,8 @@ fn main() {
     // ==================== i64 Examples ====================
     println!("\n14. i64 Examples (64-bit integers)");
 
-    let a_i64 = Matrix::new(2, 2, vec![
-        1i64, 2i64,
-        3i64, 4i64,
-    ]);
-    let b_i64 = Matrix::new(2, 2, vec![
-        5i64, 6i64,
-        7i64, 8i64,
-    ]);
+    let a_i64 = Matrix::new(2, 2, vec![1i64, 2i64, 3i64, 4i64]);
+    let b_i64 = Matrix::new(2, 2, vec![5i64, 6i64, 7i64, 8i64]);
 
     println!("i64 matrix A:");
     print_matrix(&a_i64);
@@ -307,10 +293,11 @@ fn main() {
     println!("Is A invertible (i64)? {}", a_i64.is_invertible());
 
     // Large integers (demonstrate i64 range)
-    let large_i64 = Matrix::new(2, 2, vec![
-        1_000_000i64, 2_000_000i64,
-        3_000_000i64, 4_000_000i64,
-    ]);
+    let large_i64 = Matrix::new(
+        2,
+        2,
+        vec![1_000_000i64, 2_000_000i64, 3_000_000i64, 4_000_000i64],
+    );
     println!("Large i64 matrix:");
     print_matrix(&large_i64);
     println!("Determinant: {}", large_i64.determinant());
@@ -322,11 +309,7 @@ fn main() {
     println!("for better range, or use f64 for approximate results on very large computations.");
 
     // Safe example that won't overflow
-    let safe = Matrix::new(3, 3, vec![
-        1, 2, 3,
-        4, 5, 6,
-        7, 8, 10,
-    ]);
+    let safe = Matrix::new(3, 3, vec![1, 2, 3, 4, 5, 6, 7, 8, 10]);
     println!("\nSafe 3x3 matrix:");
     print_matrix(&safe);
     println!("Determinant: {}", safe.determinant());
